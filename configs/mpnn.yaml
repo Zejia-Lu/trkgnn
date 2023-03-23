@@ -1,0 +1,26 @@
+output_dir: ./output
+
+data:
+  input_dir: "/Users/avencast/CLionProjects/darkshine-simulation/workspace/Tracker_GNN.root"
+  batch_size: 1
+
+model:
+  name: mpnn
+  input_dim: 3
+  n_edge_layers: 4
+  n_node_layers: 4
+  hidden_dim: 64
+  n_graph_iters: 8
+  layer_norm: true
+
+loss_func: binary_cross_entropy_with_logits
+
+optimizer:
+  name: Adam
+  learning_rate: 0.001
+  weight_decay: 1.e-5
+  lr_decay_schedule:
+    - { start_epoch: 32, end_epoch: 64, factor: 0.1 }
+
+training:
+  n_total_epochs: 64
