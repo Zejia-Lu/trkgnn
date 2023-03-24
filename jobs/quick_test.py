@@ -130,6 +130,19 @@ def check_data(model, device):
         print("==> Input truth size: ", data[0].y.shape)
         print("==> Output size: ", len(batch_output))
 
+        def get_tensor_memory_size(tensor):
+            return tensor.element_size() * tensor.nelement()
+
+        def data_memory_size(d):
+            total_memory_size = 0
+            for key, value in d.__dict__.items():
+                if isinstance(value, torch.Tensor):
+                    total_memory_size += get_tensor_memory_size(value)
+            return total_memory_size
+
+        print('data[0]: ', data_memory_size(data[0]))
+        print('batch: ', data_memory_size(batch))
+
         # for idx, b in enumerate(data):
         #     print(f"    {idx} ==> len: {len(b.y)}")
         # for idx, b in enumerate(batch_output):

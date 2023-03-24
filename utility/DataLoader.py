@@ -40,7 +40,12 @@ def get_data_loaders(
             valid_dataset = GNNTrackData(test_data)
 
             collate_fn = default_collate
-            loader_args = dict(batch_size=batch_size, collate_fn=collate_fn, num_workers=n_workers)
+            loader_args = dict(
+                batch_size=batch_size,
+                # collate_fn=collate_fn,
+                num_workers=n_workers,
+                pin_memory=True,
+            )
 
             train_sampler, valid_sampler = None, None
             if distributed:
@@ -98,17 +103,17 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_end'].to_numpy().reshape(-1, 1),
             ]).transpose()
-            y = eve[f'{col}_truth'].to_numpy() #.squeeze()
+            y = eve[f'{col}_truth'].to_numpy()  # .squeeze()
             truth_w = eve[f'{col}_weight']
             # re-weight truth edge with fake one
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
 
             data.append(torch_geometric.data.Data(
-                x=torch.from_numpy(node.astype(np.float32)),
-                edge_index=torch.from_numpy(edge_index.astype(np.int64)),
-                y=torch.from_numpy(y.astype(np.float32)),
-                w=torch.from_numpy(w.astype(np.float32)),
-                i=torch.from_numpy(np.array([report.start+i]))
+                x=torch.from_numpy(node.astype(np.float16)),
+                edge_index=torch.from_numpy(edge_index.astype(np.int16)),
+                y=torch.from_numpy(y.astype(np.float16)),
+                w=torch.from_numpy(w.astype(np.float16)),
+                i=torch.from_numpy(np.array([report.start + i]))
             ))
         yield data
 
