@@ -72,11 +72,9 @@ class Trainer:
                 train_sum = self.train_iteration(train_data)
                 valid_sum = self.valid_iteration(valid_data)
 
-                for name, summary in zip(['train', 'valid'], [train_sum, valid_sum]):
-                    summary['itr'] = itr
-                    summary['epoch'] = epoch
-                    summary['type'] = name
-                df_sum = pd.DataFrame([train_sum, valid_sum])
+                train_sum['itr'] = itr
+                train_sum['epoch'] = epoch
+                df_sum = pd.concat([pd.DataFrame(s) for s in [train_sum, valid_sum]], axis=1)
                 self.add_summary(df_sum)
 
                 itr += 1
