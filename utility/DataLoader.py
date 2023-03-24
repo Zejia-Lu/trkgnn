@@ -123,48 +123,51 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
 
             idx = torch.from_numpy(np.array([report.start + i]))
-            data.append(torch_geometric.data.Data(
+            graph = torch_geometric.data.Data(
                 x=torch.from_numpy(node.astype(np.float32)),
                 edge_index=torch.from_numpy(edge_index.astype(np.int64)),
                 y=torch.from_numpy(y.astype(np.float32)),
                 w=torch.from_numpy(w.astype(np.float32)),
                 i=idx
-            ))
-            print('data -> ', data)
-            yield data
+            )
+            data.append(graph)
+        print('data -> ', data)
+        yield data
 
-    class GNNTrackData(Dataset):
-        """PyTorch dataset specification for hit graphs"""
 
-        @timing_decorator
-        def __init__(self, data):
-            super().__init__()
+class GNNTrackData(Dataset):
+    """PyTorch dataset specification for hit graphs"""
 
-            self.total_len = len(data)
-            self.data = data
+    @timing_decorator
+    def __init__(self, data):
+        super().__init__()
 
-            # self.data_gen = load_ntuples(input_dir, tree_name, graph_branch, col, chunk_size="100 MB")
+        self.total_len = len(data)
+        self.data = data
 
-        def len(self) -> int:
-            return self.total_len
+        # self.data_gen = load_ntuples(input_dir, tree_name, graph_branch, col, chunk_size="100 MB")
 
-        def get(self, idx: int) -> Data:
-            return self.data[idx]
+    def len(self) -> int:
+        return self.total_len
 
-    if __name__ == '__main__':
-        from utility.Control import load_config
-        from utility.FunctionTime import print_accumulated_times
+    def get(self, idx: int) -> Data:
+        return self.data[idx]
 
-        load_config('/Users/avencast/PycharmProjects/trkgnn/configs/mpnn.yaml')
-        load_gen = get_data_loaders(cfg['data']['input_dir'], chunk_size=10, batch_size=2)
 
-        while True:
-            try:
-                a, b = next(load_gen)
-                print(len(a))
-                print(len(b))
-            except StopIteration:
-                print("Finish")
-                break
+if __name__ == '__main__':
+    from utility.Control import load_config
+    from utility.FunctionTime import print_accumulated_times
 
-        print_accumulated_times()
+    load_config('/Users/avencast/PycharmProjects/trkgnn/configs/mpnn.yaml')
+    load_gen = get_data_loaders(cfg['data']['input_dir'], chunk_size=10, batch_size=2)
+
+    while True:
+        try:
+            a, b = next(load_gen)
+            print(len(a))
+            print(len(b))
+        except StopIteration:
+            print("Finish")
+            break
+
+    print_accumulated_times()
