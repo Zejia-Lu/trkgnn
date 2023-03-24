@@ -107,7 +107,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
         print(report)
         process_len = report.stop - report.start
         data = []
-        for i, eve in enumerate(chunk):
+        for index, eve in enumerate(chunk):
             node = np.hstack([
                 eve[f'{col}_x'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
@@ -122,7 +122,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             # re-weight truth edge with fake one
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
 
-            idx = torch.from_numpy(np.array([report.start + i]))
+            idx = torch.from_numpy(np.array([report.start + index]))
             graph = torch_geometric.data.Data(
                 x=torch.from_numpy(node.astype(np.float32)),
                 edge_index=torch.from_numpy(edge_index.astype(np.int64)),
