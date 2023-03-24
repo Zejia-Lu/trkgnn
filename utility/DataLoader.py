@@ -122,6 +122,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             # re-weight truth edge with fake one
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
 
+            print(i, report.start, [report.start + i], torch.from_numpy(np.array([report.start + i])))
             data.append(torch_geometric.data.Data(
                 x=torch.from_numpy(node.astype(np.float32)),
                 edge_index=torch.from_numpy(edge_index.astype(np.int64)),
