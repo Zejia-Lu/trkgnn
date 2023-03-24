@@ -31,7 +31,7 @@ def process(rank, world_size, config_path, verbose):
     print(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
 
-    model = build_model(rank, world_size > 1)
+    model = build_model(rank, distributed=True)
 
     checkpoint_path = os.path.join(cfg['output_dir'], 'model.checkpoint')
     if rank == 0:
@@ -45,8 +45,19 @@ def process(rank, world_size, config_path, verbose):
     dist.barrier()
     # configure map_location properly
     map_location = {'cuda:%d' % 0: 'cuda:%d' % rank}
-    model.load_state_dict(
-        torch.load(checkpoint_path, map_location=map_location))
+    model.load_state_dict(torch.load(checkpoint_path, map_location=map_location))
+
+    # Check if the model is on the correct GPU
+    def is_model_on_device(m, device):
+        for param in m.parameters():
+            if param.device != device:
+                return param.device
+        return device
+
+    if d := is_model_on_device(model, rank):
+        print(f"Model is on the correct device: {d}")
+    else:
+        print(f"Model is not on the correct device. Expected device: {d}")
 
     # Back to normal training
     optimizer, lr_scheduler = build_optimizer(model.parameters(), **cfg['optimizer'])
