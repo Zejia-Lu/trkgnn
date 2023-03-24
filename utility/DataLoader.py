@@ -65,6 +65,15 @@ def get_data_loaders(
                 )
                 if valid_dataset is not None else None
             )
+
+            print(f"Dataset size: {len(train_data_loader)}")
+            print(f"Total number of GPUs: {n_ranks}")
+            print(f"Rank (GPU index): {rank}")
+
+            sample_indices = [i for i in train_data_loader]
+            print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
+            print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
+
             yield train_data_loader, valid_data_loader
 
         except StopIteration:
