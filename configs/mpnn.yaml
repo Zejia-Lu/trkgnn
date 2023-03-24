@@ -1,7 +1,11 @@
 output_dir: ./output
+rndm: 1
 
 data:
-  input_dir: "/Users/avencast/CLionProjects/darkshine-simulation/workspace/Tracker_GNN.root"
+  input_dir: "/Users/avencast/CLionProjects/darkshine-simulation/workspace/Tracker_GNN*.root"
+  tree_name: 'dp'
+  collection: 'TagTrk1'
+  chunk_size: "1024 MB"
   batch_size: 1
 
 model:

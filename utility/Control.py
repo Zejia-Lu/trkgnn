@@ -2,7 +2,11 @@ import os
 
 import yaml
 
-cfg = {}
+cfg = {
+    "data": {
+        "chunk_size": "500 MB",
+    }
+}
 
 
 def load_config(file_str: str) -> None:
