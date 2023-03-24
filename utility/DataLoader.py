@@ -74,6 +74,10 @@ def get_data_loaders(
             print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
             print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
 
+            sample_indices = [i for i in valid_data_loader]
+            print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
+            print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
+
             yield train_data_loader, valid_data_loader
 
         except StopIteration:
