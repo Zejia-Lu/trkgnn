@@ -33,20 +33,20 @@ def process(rank, world_size, config_path, verbose):
 
     model = build_model(rank, world_size > 1)
 
-    # checkpoint_path = os.path.join(cfg['output_dir'], 'model.checkpoint')
-    # if rank == 0:
-    #     # All processes should see same parameters as they all start from same
-    #     # random parameters and gradients are synchronized in backward passes.
-    #     # Therefore, saving it in one process is sufficient.
-    #     torch.save(model.module.state_dict(), checkpoint_path)
-    #
-    # # Use a barrier() to make sure that process 1 loads the model after process
-    # # 0 saves it.
-    # dist.barrier()
-    # # configure map_location properly
-    # map_location = {'cuda:%d' % 0: 'cuda:%d' % rank}
-    # model.load_state_dict(
-    #     torch.load(checkpoint_path, map_location=map_location))
+    checkpoint_path = os.path.join(cfg['output_dir'], 'model.checkpoint')
+    if rank == 0:
+        # All processes should see same parameters as they all start from same
+        # random parameters and gradients are synchronized in backward passes.
+        # Therefore, saving it in one process is sufficient.
+        torch.save(model.state_dict(), checkpoint_path)
+
+    # Use a barrier() to make sure that process 1 loads the model after process
+    # 0 saves it.
+    dist.barrier()
+    # configure map_location properly
+    map_location = {'cuda:%d' % 0: 'cuda:%d' % rank}
+    model.load_state_dict(
+        torch.load(checkpoint_path, map_location=map_location))
 
     # Back to normal training
     optimizer, lr_scheduler = build_optimizer(model.parameters(), **cfg['optimizer'])
@@ -67,8 +67,8 @@ def process(rank, world_size, config_path, verbose):
         world_size=world_size
     )
 
-    # if rank == 0:
-    #     os.remove(checkpoint_path)
+    if rank == 0:
+        os.remove(checkpoint_path)
 
     cleanup()
     print(f"==> Finish running basic DDP on rank {rank}.")
