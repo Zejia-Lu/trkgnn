@@ -42,7 +42,7 @@ def get_data_loaders(
             collate_fn = default_collate
             loader_args = dict(
                 batch_size=batch_size,
-                # collate_fn=collate_fn,
+                collate_fn=collate_fn,
                 num_workers=n_workers,
                 pin_memory=True,
             )
@@ -66,7 +66,7 @@ def get_data_loaders(
                 if valid_dataset is not None else None
             )
 
-            print(f"Dataset size: {len(train_data_loader)}")
+            print(f"Dataset size: {len(train_dataset)}")
             print(f"Total number of GPUs: {n_ranks}")
             print(f"Rank (GPU index): {rank}")
 
@@ -129,6 +129,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 w=torch.from_numpy(w.astype(np.float32)),
                 i=torch.from_numpy(np.array([report.start + i]))
             ))
+        print('data -> ', data)
         yield data
 
 
