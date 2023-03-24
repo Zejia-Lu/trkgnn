@@ -108,7 +108,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             report=True
     ):
 
-        if (cfg['data']['global_stop'] is not None) and (report.start > cfg['data']['global_stop']):
+        if ('global_stop' in cfg['data']) and (report.start > cfg['data']['global_stop']):
             return None
         process_len = report.stop - report.start
         data = []
