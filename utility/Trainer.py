@@ -43,7 +43,8 @@ class Trainer:
 
             # Train on this epoch
             self.process_epoch(epoch, world_size)
-            self.write_checkpoint(epoch)
+            if self.rank == 0:
+                self.write_checkpoint(epoch)
             self.lr_scheduler.step()
 
         # Save summary, checkpoint
@@ -84,6 +85,7 @@ class Trainer:
                 train_sum['epoch'] = epoch
                 df_sum = pd.concat([pd.DataFrame(s, index=[0]) for s in [train_sum, valid_sum]], axis=1)
                 self.add_summary(df_sum)
+                self.save_summary()
 
                 itr += 1
             except StopIteration:
@@ -183,6 +185,7 @@ class Trainer:
         if cfg['output_dir']:
             summary_file = os.path.join(cfg['output_dir'], 'summaries_%i.csv' % self.rank)
             self.summaries.to_csv(summary_file, index=False)
+            self.logger.info(f'[Rank {self.rank}]: Write summary to {summary_file}')
         pass
 
     def write_checkpoint(self, checkpoint_id):
@@ -200,6 +203,7 @@ class Trainer:
         os.makedirs(checkpoint_dir, exist_ok=True)
         checkpoint_file = 'model_checkpoint_%03i.pth.tar' % checkpoint_id
         torch.save(checkpoint, os.path.join(checkpoint_dir, checkpoint_file))
+        self.logger.info(f'[Rank {self.rank}]: Write checkpoint {checkpoint_id} to {checkpoint_file}')
 
 
 def get_weight_norm(model, norm_type=2):
