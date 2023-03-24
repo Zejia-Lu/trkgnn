@@ -69,7 +69,7 @@ def process(rank, world_size, config_path, verbose):
         lr_scheduler=lr_scheduler,
         loss_func=loss,
         device=rank,
-        distributed=False
+        distributed=True
     )
 
     trainer.process(
