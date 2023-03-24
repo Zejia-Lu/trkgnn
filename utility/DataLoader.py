@@ -105,7 +105,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             report=True
     ):
         print(report)
-        print(report.global_start, report.global_stop, report.global_offset)
+        print(report.global_offset)
         process_len = report.stop - report.start
         data = []
         for index, eve in enumerate(chunk):
