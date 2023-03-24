@@ -1,6 +1,8 @@
 import logging
+import os
 import time
 
+import pandas as pd
 import torch
 
 from utility.Control import cfg
@@ -41,10 +43,10 @@ class Trainer:
             self.process_epoch(epoch, rank, world_size)
             self.lr_scheduler.step()
 
-            # Save summary, checkpoint
-            # self.save_summary(summary)
-            # if self.output_dir is not None and self.rank == 0:
-            #     self.write_checkpoint(checkpoint_id=epoch)
+        # Save summary, checkpoint
+        self.save_summary(rank)
+        # if self.output_dir is not None and self.rank == 0:
+        #     self.write_checkpoint(checkpoint_id=epoch)
 
     @timing_decorator
     def process_epoch(self, epoch, rank, world_size):
@@ -57,6 +59,8 @@ class Trainer:
             rank=rank,
             n_ranks=world_size,
         )
+
+        itr = 0
         while True:
             try:
                 train_data, valid_data = next(data_generator)
@@ -68,6 +72,14 @@ class Trainer:
                 train_sum = self.train_iteration(train_data)
                 valid_sum = self.valid_iteration(valid_data)
 
+                for name, summary in zip(['train', 'valid'], [train_sum, valid_sum]):
+                    summary['itr'] = itr
+                    summary['epoch'] = epoch
+                    summary['type'] = name
+                df_sum = pd.DataFrame([train_sum, valid_sum])
+                self.add_summary(df_sum)
+
+                itr += 1
             except StopIteration:
                 print("Finish")
                 break
@@ -154,6 +166,18 @@ class Trainer:
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
         self.logger.info('  Validation loss: %.3f acc: %.3f' % (summary['valid_loss'], summary['valid_acc']))
         return summary
+
+    def add_summary(self, summaries):
+        if self.summaries is None:
+            self.summaries = summaries
+        else:
+            self.summaries = pd.concat([self.summaries, summaries], ignore_index=True)
+
+    def save_summary(self, rank):
+        if cfg['output_dir']:
+            summary_file = os.path.join(cfg['output_dir'], 'summaries_%i.csv' % rank)
+            self.summaries.to_csv(summary_file, index=False)
+        pass
 
 
 def get_weight_norm(model, norm_type=2):
