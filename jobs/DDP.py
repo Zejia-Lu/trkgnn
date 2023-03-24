@@ -38,7 +38,7 @@ def process(rank, world_size, config_path, verbose):
         # All processes should see same parameters as they all start from same
         # random parameters and gradients are synchronized in backward passes.
         # Therefore, saving it in one process is sufficient.
-        torch.save(model.state_dict(), checkpoint_path)
+        torch.save(model.module.state_dict(), checkpoint_path)
 
     # Use a barrier() to make sure that process 1 loads the model after process
     # 0 saves it.
