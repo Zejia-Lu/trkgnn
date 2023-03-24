@@ -129,8 +129,8 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 y=torch.from_numpy(y.astype(np.float32)),
                 w=torch.from_numpy(w.astype(np.float32)),
             )
-            print(idx, graph)
             graph.i = idx
+            print(idx, graph)
             data.append(graph)
         print('data -> ', data)
         yield data
