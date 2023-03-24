@@ -66,17 +66,17 @@ def get_data_loaders(
                 if valid_dataset is not None else None
             )
 
-            print(f"Dataset size: {len(train_dataset)}")
-            print(f"Total number of GPUs: {n_ranks}")
-            print(f"Rank (GPU index): {rank}")
-
-            sample_indices = [i.i for i in train_data_loader]
-            print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
-            print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
-
-            sample_indices = [i.i for i in valid_data_loader]
-            print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
-            print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
+            # print(f"Dataset size: {len(train_dataset)}")
+            # print(f"Total number of GPUs: {n_ranks}")
+            # print(f"Rank (GPU index): {rank}")
+            #
+            # sample_indices = [i.i for i in train_data_loader]
+            # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
+            # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
+            #
+            # sample_indices = [i.i for i in valid_data_loader]
+            # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
+            # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
 
             yield train_data_loader, valid_data_loader
 
@@ -104,7 +104,6 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             filter_name=branch_name,
             report=True
     ):
-        print(report)
         process_len = report.stop - report.start
         data = []
         for index, eve in enumerate(chunk):

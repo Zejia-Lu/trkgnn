@@ -67,19 +67,14 @@ class Trainer:
         itr = 0
         while True:
             try:
-                self.logger.info(f'{itr}: Start Generating data')
                 train_data, valid_data = next(data_generator)
-                self.logger.info(f'{itr}: Generating Done')
                 try:
                     train_data.sampler.set_epoch(epoch)
                 except AttributeError:
                     pass
 
-                self.logger.info(f'{itr}: Training')
                 train_sum = self.train_iteration(train_data)
-                self.logger.info(f'{itr}: Validating')
                 valid_sum = self.valid_iteration(valid_data)
-                self.logger.info(f'{itr}: Done')
 
                 train_sum['itr'] = itr
                 train_sum['epoch'] = epoch
@@ -121,9 +116,6 @@ class Trainer:
                     '  train batch %i loss %.4f l1 %.2f l2 %.4f grad %.3f idx %i',
                     i, batch_loss.item(), l1, l2, grad_norm, batch.i[0].item()
                 )
-                self.logger.debug('[Train] -- samples in the batch')
-                for bi in batch.i:
-                    self.logger.debug(f' -- > {bi.item()}')
 
         # Summarize the epoch
         n_batches = i + 1
@@ -163,9 +155,6 @@ class Trainer:
             sum_correct += matches.sum().item()
             sum_total += matches.numel()
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
-            self.logger.debug('[Valid] -- samples in the batch')
-            for bi in batch.i:
-                self.logger.debug(f' -- > {bi.item()}')
 
         # Summarize the validation epoch
         n_batches = len(data_loader)
