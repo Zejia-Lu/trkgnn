@@ -100,6 +100,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             filter_name=branch_name,
             report=True
     ):
+        print(report)
         process_len = report.stop - report.start
         data = []
         for i, eve in enumerate(chunk):
