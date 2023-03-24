@@ -39,7 +39,11 @@ def process(rank, world_size):
         distributed=False
     )
 
-    trainer.process(n_epochs=3, n_total_epochs=cfg['training']['n_total_epochs'], rank=rank, world_size=world_size)
+    trainer.process(
+        n_epochs=cfg['training']['n_total_epochs'],
+        n_total_epochs=cfg['training']['n_total_epochs'],
+        rank=rank, world_size=world_size
+    )
 
     cleanup()
     print(f"==> Finish running basic DDP on rank {rank}.")
