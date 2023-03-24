@@ -1,9 +1,9 @@
 import os
 
-from utility.Control import cfg
+from utility.Control import load_config, cfg
 from utility.Trainer import Trainer
 from utility.EverythingNeeded import build_model, build_optimizer, build_loss, config_logging
-from utility.FunctionTime import timing_decorator
+from utility.FunctionTime import timing_decorator, print_accumulated_times
 
 import torch.distributed as dist
 import torch.multiprocessing as mp
@@ -49,6 +49,7 @@ def process(rank, world_size, config_path):
 
     cleanup()
     print(f"==> Finish running basic DDP on rank {rank}.")
+    print_accumulated_times()
 
 
 def parallel_process(config_path, world_size):
