@@ -22,7 +22,9 @@ def cleanup():
 
 
 @timing_decorator
-def process(rank, world_size):
+def process(rank, world_size, config_path):
+    load_config(config_path)
+
     print(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
 
@@ -49,12 +51,12 @@ def process(rank, world_size):
     print(f"==> Finish running basic DDP on rank {rank}.")
 
 
-def parallel_process(world_size):
+def parallel_process(config_path, world_size):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
 
     mp.spawn(process,
-             args=(world_size,),
+             args=(world_size, config_path),
              nprocs=world_size,
              join=True)
 

@@ -11,8 +11,7 @@ def main(arg):
         quick_test()
 
     if arg.command == 'DDP':
-        load_config(arg.config)
-        parallel_process(args.world_size)
+        parallel_process(arg.config, args.world_size)
 
     pass
 

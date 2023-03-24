@@ -15,8 +15,7 @@ from utility.Control import cfg
 def build_model(rank, distributed=False):
     if 'model' in cfg:
         model_configs = cfg['model']
-        name = model_configs.pop('name')
-        model = models.get_model(name=name, **model_configs).to(rank)
+        model = models.get_model(**model_configs).to(rank)
 
         # print(model)
         print('Parameters: %i' % sum(p.numel() for p in model.parameters()))
@@ -26,7 +25,7 @@ def build_model(rank, distributed=False):
         else:
             return model
     else:
-        print("model is not missing in config.")
+        print("model is missing in config.")
         return None
 
 
