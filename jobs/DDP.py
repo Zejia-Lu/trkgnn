@@ -24,7 +24,7 @@ def cleanup():
 @timing_decorator
 def process(rank, world_size, config_path):
     load_config(config_path)
-    config_logging(True, output_dir=cfg['output_dir'])
+    config_logging(True, output_dir=cfg['output_dir'], rank=rank)
 
     print(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
