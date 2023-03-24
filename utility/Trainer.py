@@ -66,14 +66,19 @@ class Trainer:
         itr = 0
         while True:
             try:
+                self.logger.info(f'{itr}: Start Generating data')
                 train_data, valid_data = next(data_generator)
+                self.logger.info(f'{itr}: Generating Done')
                 try:
                     train_data.sampler.set_epoch(epoch)
                 except AttributeError:
                     pass
 
+                self.logger.info(f'{itr}: Training')
                 train_sum = self.train_iteration(train_data)
+                self.logger.info(f'{itr}: Validating')
                 valid_sum = self.valid_iteration(valid_data)
+                self.logger.info(f'{itr}: Done')
 
                 train_sum['itr'] = itr
                 train_sum['epoch'] = epoch
