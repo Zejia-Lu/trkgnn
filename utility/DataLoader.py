@@ -109,10 +109,10 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
 
             data.append(torch_geometric.data.Data(
-                x=torch.from_numpy(node.astype(np.float16)),
-                edge_index=torch.from_numpy(edge_index.astype(np.int16)),
-                y=torch.from_numpy(y.astype(np.float16)),
-                w=torch.from_numpy(w.astype(np.float16)),
+                x=torch.from_numpy(node.astype(np.float32)),
+                edge_index=torch.from_numpy(edge_index.astype(np.int64)),
+                y=torch.from_numpy(y.astype(np.float32)),
+                w=torch.from_numpy(w.astype(np.float32)),
                 i=torch.from_numpy(np.array([report.start + i]))
             ))
         yield data
