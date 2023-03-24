@@ -7,6 +7,7 @@ data:
   collection: 'TagTrk1'
   chunk_size: "1024 MB"
   batch_size: 1
+  n_workers: 0
 
 model:
   name: mpnn

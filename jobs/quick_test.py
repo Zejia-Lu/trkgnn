@@ -13,7 +13,6 @@ from torch_geometric.data import Batch
 # Locals
 from models import get_model
 from utility.Control import cfg
-from utility.ModelSummary import summary
 
 
 def check_env():
@@ -33,9 +32,9 @@ def check_env():
             print(f"GPU {i}: {gpu_info.name}")
 
         device = torch.device("cuda:0")
-    elif torch.has_mps:
-        print("mps is available.")
-        device = torch.device("mps")
+    # elif torch.has_mps:
+    #     print("mps is available.")
+    #     device = torch.device("mps")
     else:
         print("CUDA is not available.")
         device = torch.device("cpu")

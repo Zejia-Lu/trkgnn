@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import uproot as up
 import torch
-from torch.utils.data import Dataset, random_split
 from torch_geometric.loader import DataLoader
 import torch_geometric
 from torch_geometric.data import Dataset, Data
@@ -89,7 +88,6 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
     ):
         process_len = report.stop - report.start
         data = []
-        print(report)
         for i, eve in enumerate(chunk):
             node = np.hstack([
                 eve[f'{col}_x'].to_numpy().reshape(-1, 1),
@@ -100,16 +98,17 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_end'].to_numpy().reshape(-1, 1),
             ]).transpose()
-            y = eve[f'{col}_truth'].to_numpy().squeeze()
+            y = eve[f'{col}_truth'].to_numpy() #.squeeze()
             truth_w = eve[f'{col}_weight']
             # re-weight truth edge with fake one
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
 
             data.append(torch_geometric.data.Data(
-                x=torch.from_numpy(node),
+                x=torch.from_numpy(node.astype(np.float32)),
                 edge_index=torch.from_numpy(edge_index.astype(np.int64)),
-                y=y,
-                w=w
+                y=torch.from_numpy(y.astype(np.float32)),
+                w=torch.from_numpy(w.astype(np.float32)),
+                i=torch.from_numpy(np.array([report.start+i]))
             ))
         yield data
 
