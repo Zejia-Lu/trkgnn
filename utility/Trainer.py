@@ -74,7 +74,7 @@ class Trainer:
 
                 train_sum['itr'] = itr
                 train_sum['epoch'] = epoch
-                df_sum = pd.concat([pd.DataFrame(s) for s in [train_sum, valid_sum]], axis=1)
+                df_sum = pd.concat([pd.DataFrame(s, index=[0]) for s in [train_sum, valid_sum]], axis=1)
                 self.add_summary(df_sum)
 
                 itr += 1
