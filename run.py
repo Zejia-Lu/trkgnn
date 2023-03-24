@@ -11,7 +11,7 @@ def main(arg):
         quick_test()
 
     if arg.command == 'DDP':
-        parallel_process(arg.config, args.world_size)
+        parallel_process(arg.config, args.world_size, args.verbose)
 
     pass
 
@@ -34,6 +34,7 @@ if __name__ == '__main__':
     DDP = subparsers.add_parser('DDP', help='Distributed Data Parallel Training')
     DDP.add_argument('config', default='config.yaml', type=str, help="the config file")
     DDP.add_argument('-w', '--world_size', type=int, default=1)
+    DDP.add_argument('-v', '--verbose', action='store_true')
 
     args = par.parse_args()
 

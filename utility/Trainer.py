@@ -21,8 +21,10 @@ class Trainer:
         self.device = device
         self.summaries = None
         self.distributed = distributed
+        self.rank = device
+        self.acc_threshold = 0.5
 
-    def process(self, n_epochs, n_total_epochs, rank, world_size):
+    def process(self, n_epochs, n_total_epochs, world_size):
         # Determine initial epoch in case resuming training
         start_epoch = 0
         if self.summaries is not None:
@@ -40,23 +42,24 @@ class Trainer:
             self.logger.info('Epoch %i' % epoch)
 
             # Train on this epoch
-            self.process_epoch(epoch, rank, world_size)
+            self.process_epoch(epoch, world_size)
+            self.write_checkpoint(epoch)
             self.lr_scheduler.step()
 
         # Save summary, checkpoint
-        self.save_summary(rank)
+        self.save_summary()
         # if self.output_dir is not None and self.rank == 0:
         #     self.write_checkpoint(checkpoint_id=epoch)
 
     @timing_decorator
-    def process_epoch(self, epoch, rank, world_size):
+    def process_epoch(self, epoch, world_size):
         data_generator = get_data_loaders(
             cfg['data']['input_dir'],
             chunk_size=cfg['data']['chunk_size'],
             batch_size=cfg['data']['batch_size'],
             distributed=self.distributed,
             n_workers=cfg['data']['n_workers'],
-            rank=rank,
+            rank=self.rank,
             n_ranks=world_size,
         )
 
@@ -149,7 +152,7 @@ class Trainer:
 
             # Count number of correct predictions
             batch_pred = torch.sigmoid(batch_output)
-            matches = ((batch_pred > 0.5) == (batch.y > 0.5))
+            matches = ((batch_pred > self.acc_threshold) == (batch.y > self.acc_threshold))
             sum_correct += matches.sum().item()
             sum_total += matches.numel()
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
@@ -158,7 +161,7 @@ class Trainer:
                 self.logger.debug(f' -- > {bi.item()}')
 
         # Summarize the validation epoch
-        n_batches = i + 1
+        n_batches = len(data_loader)
         summary['valid_loss'] = sum_loss / n_batches
         summary['valid_acc'] = sum_correct / sum_total
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
@@ -171,11 +174,27 @@ class Trainer:
         else:
             self.summaries = pd.concat([self.summaries, summaries], ignore_index=True)
 
-    def save_summary(self, rank):
+    def save_summary(self):
         if cfg['output_dir']:
-            summary_file = os.path.join(cfg['output_dir'], 'summaries_%i.csv' % rank)
+            summary_file = os.path.join(cfg['output_dir'], 'summaries_%i.csv' % self.rank)
             self.summaries.to_csv(summary_file, index=False)
         pass
+
+    def write_checkpoint(self, checkpoint_id):
+        """Write a checkpoint for the model"""
+        assert cfg['output_dir'] is not None
+        # If using DistributedDataParallel, just save the wrapped model state
+        model_state_dict = (self.model.module.state_dict())
+        checkpoint = dict(
+            checkpoint_id=checkpoint_id,
+            model=model_state_dict,
+            optimizer=self.optimizer.state_dict(),
+            lr_scheduler=self.lr_scheduler.state_dict()
+        )
+        checkpoint_dir = os.path.join(cfg['output_dir'], 'model.checkpoints')
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        checkpoint_file = 'model_checkpoint_%03i.pth.tar' % checkpoint_id
+        torch.save(checkpoint, os.path.join(checkpoint_dir, checkpoint_file))
 
 
 def get_weight_norm(model, norm_type=2):

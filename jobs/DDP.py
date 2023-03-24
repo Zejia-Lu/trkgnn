@@ -1,5 +1,7 @@
 import os
 
+import torch
+
 from utility.Control import load_config, cfg
 from utility.Trainer import Trainer
 from utility.EverythingNeeded import build_model, build_optimizer, build_loss, config_logging
@@ -22,14 +24,31 @@ def cleanup():
 
 
 @timing_decorator
-def process(rank, world_size, config_path):
+def process(rank, world_size, config_path, verbose):
     load_config(config_path)
-    config_logging(True, output_dir=cfg['output_dir'], rank=rank)
+    config_logging(verbose, output_dir=cfg['output_dir'], rank=rank)
 
     print(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
 
     model = build_model(rank, world_size > 1)
+
+    checkpoint_path = os.path.join(cfg['output_dir'], 'model.checkpoint')
+    if rank == 0:
+        # All processes should see same parameters as they all start from same
+        # random parameters and gradients are synchronized in backward passes.
+        # Therefore, saving it in one process is sufficient.
+        torch.save(model.state_dict(), checkpoint_path)
+
+    # Use a barrier() to make sure that process 1 loads the model after process
+    # 0 saves it.
+    dist.barrier()
+    # configure map_location properly
+    map_location = {'cuda:%d' % 0: 'cuda:%d' % rank}
+    model.load_state_dict(
+        torch.load(checkpoint_path, map_location=map_location))
+
+    # Back to normal training
     optimizer, lr_scheduler = build_optimizer(model.parameters(), **cfg['optimizer'])
     loss = build_loss(cfg['loss_func'])
 
@@ -45,20 +64,23 @@ def process(rank, world_size, config_path):
     trainer.process(
         n_epochs=cfg['training']['n_total_epochs'],
         n_total_epochs=cfg['training']['n_total_epochs'],
-        rank=rank, world_size=world_size
+        world_size=world_size
     )
+
+    if rank == 0:
+        os.remove(checkpoint_path)
 
     cleanup()
     print(f"==> Finish running basic DDP on rank {rank}.")
     print_accumulated_times()
 
 
-def parallel_process(config_path, world_size):
+def parallel_process(config_path, world_size, verbose):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
 
     mp.spawn(process,
-             args=(world_size, config_path),
+             args=(world_size, config_path, verbose),
              nprocs=world_size,
              join=True)
 
