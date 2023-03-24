@@ -70,11 +70,11 @@ def get_data_loaders(
             print(f"Total number of GPUs: {n_ranks}")
             print(f"Rank (GPU index): {rank}")
 
-            sample_indices = [i for i in train_data_loader]
+            sample_indices = [i.i for i in train_data_loader]
             print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
             print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
 
-            sample_indices = [i for i in valid_data_loader]
+            sample_indices = [i.i for i in valid_data_loader]
             print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
             print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
 
@@ -122,17 +122,14 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             # re-weight truth edge with fake one
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
 
-            idx = torch.from_numpy(np.array([report.start + index]))
             graph = torch_geometric.data.Data(
                 x=torch.from_numpy(node.astype(np.float32)),
                 edge_index=torch.from_numpy(edge_index.astype(np.int64)),
                 y=torch.from_numpy(y.astype(np.float32)),
                 w=torch.from_numpy(w.astype(np.float32)),
+                i=torch.from_numpy(np.array([report.start + index])),
             )
-            graph.i = idx
-            print(idx, graph)
             data.append(graph)
-        print('data -> ', data)
         yield data
 
 
