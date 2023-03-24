@@ -24,6 +24,7 @@ def cleanup():
 @timing_decorator
 def process(rank, world_size, config_path):
     load_config(config_path)
+    config_logging(True, output_dir=cfg['output_dir'])
 
     print(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
@@ -63,9 +64,6 @@ def parallel_process(config_path, world_size):
 
 
 if __name__ == '__main__':
-    from utility.Control import load_config
-    from utility.FunctionTime import print_accumulated_times
-
     load_config('/Users/avencast/PycharmProjects/trkgnn/configs/mpnn.yaml')
 
     config_logging(True, None)
