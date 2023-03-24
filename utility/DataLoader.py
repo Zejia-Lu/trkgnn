@@ -104,8 +104,9 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             filter_name=branch_name,
             report=True
     ):
-        print(report)
-        print(report.global_offset)
+
+        if (cfg['data']['global_stop'] is not None) and (report.start > cfg['data']['global_stop']):
+            raise StopIteration
         process_len = report.stop - report.start
         data = []
         for index, eve in enumerate(chunk):
