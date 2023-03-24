@@ -34,6 +34,9 @@ def get_data_loaders(
     while True:
         try:
             chunk_data = next(chunk_generator)
+            if chunk_data is None:
+                print("All chunks are loaded")
+                break
         except StopIteration:
             print("All chunks are loaded")
             break
@@ -106,7 +109,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
     ):
 
         if (cfg['data']['global_stop'] is not None) and (report.start > cfg['data']['global_stop']):
-            raise StopIteration
+            return None
         process_len = report.stop - report.start
         data = []
         for index, eve in enumerate(chunk):
