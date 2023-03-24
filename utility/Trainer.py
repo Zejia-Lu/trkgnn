@@ -50,12 +50,12 @@ class Trainer:
     def process_epoch(self, epoch, rank, world_size):
         data_generator = get_data_loaders(
             cfg['data']['input_dir'],
-            chunk_size=10,
-            batch_size=2,
+            chunk_size=cfg['data']['chunk_size'],
+            batch_size=cfg['data']['batch_size'],
             distributed=self.distributed,
             n_workers=cfg['data']['n_workers'],
             rank=rank,
-            n_ranks=world_size
+            n_ranks=world_size,
         )
         while True:
             try:
@@ -97,8 +97,13 @@ class Trainer:
                 l1 = get_weight_norm(self.model, 1)
                 l2 = get_weight_norm(self.model, 2)
                 grad_norm = get_grad_norm(self.model)
-                self.logger.debug('  train batch %i loss %.4f l1 %.2f l2 %.4f grad %.3f idx %i',
-                                  i, batch_loss.item(), l1, l2, grad_norm, batch.i[0].item())
+                self.logger.debug(
+                    '  train batch %i loss %.4f l1 %.2f l2 %.4f grad %.3f idx %i',
+                    i, batch_loss.item(), l1, l2, grad_norm, batch.i[0].item()
+                )
+                self.logger.debug('[Train] -- samples in the batch')
+                for bi in batch.i:
+                    self.logger.debug(f' -- > {bi.item()}')
 
         # Summarize the epoch
         n_batches = i + 1
@@ -138,6 +143,9 @@ class Trainer:
             sum_correct += matches.sum().item()
             sum_total += matches.numel()
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
+            self.logger.debug('[Valid] -- samples in the batch')
+            for bi in batch.i:
+                self.logger.debug(f' -- > {bi.item()}')
 
         # Summarize the validation epoch
         n_batches = i + 1
