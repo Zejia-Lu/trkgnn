@@ -4,6 +4,8 @@ import time
 
 import pandas as pd
 import torch
+from torch import nn
+import pyro.distributions as dist
 
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
@@ -23,6 +25,21 @@ class Trainer:
         self.distributed = distributed
         self.rank = device
         self.acc_threshold = 0.5
+        self.loss_fn_p = nn.SmoothL1Loss()
+        self.loss_alpha = 0.5
+        self.sample_size = cfg['data']['sample_size']
+
+    def sample(self, flow_output):
+        mean, log_scale = flow_output.split([1, 1], dim=-1)
+        scale = torch.exp(-log_scale)
+        predicted_momentum = dist.Normal(mean, scale).sample([self.sample_size])
+        return predicted_momentum.mean(axis=0)
+
+    def loss(self, y_loss_fn, y_pred, y_true, p_pred, p_true, weight=None):
+        y_loss = y_loss_fn(y_pred, y_true, weight=weight)
+        p_loss = self.loss_fn_p(p_pred, p_true)
+
+        return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
 
     @timing_decorator
     def process(self, n_epochs, n_total_epochs, world_size):
@@ -106,9 +123,9 @@ class Trainer:
             con_mask = (batch.y == 1)
             p_truth = batch.p[con_mask]
             p_out = p_out[con_mask]
-            p_pred = self.model.module.sample(p_out).squeeze()
+            p_pred = self.sample(p_out).squeeze()
 
-            batch_loss = self.model.module.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
+            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
             batch_loss.backward()
             self.optimizer.step()
@@ -160,9 +177,9 @@ class Trainer:
             con_mask = (batch.y == 1)
             p_truth = batch.p[con_mask]
             p_out = p_out[con_mask]
-            p_pred = self.model.module.sample(p_out).squeeze()
+            p_pred = self.sample(p_out).squeeze()
 
-            batch_loss = self.model.module.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
+            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
             sum_loss += batch_loss
 
             # Count number of correct predictions

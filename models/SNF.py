@@ -42,11 +42,8 @@ def custom_split(x, nf_dim):
 
 
 class SNFModel(nn.Module):
-    def __init__(self, input_dim, hidden_dim, nf_dim=1, loss_alpha=0.5, sample_size=100, **kwargs):
+    def __init__(self, input_dim, hidden_dim, nf_dim=1, **kwargs):
         super(SNFModel, self).__init__()
-        self.loss_fn = nn.SmoothL1Loss()
-        self.loss_alpha = loss_alpha
-        self.sample_size = sample_size
         self.nf_dim = nf_dim
         self.gnn = GNN(input_dim, hidden_dim, snf_output_dim=nf_dim, **kwargs)
         self.stochastic_layer = StochasticLayer(nf_dim, hidden_dim)
@@ -71,17 +68,6 @@ class SNFModel(nn.Module):
 
         return edge_scores, flow_output
 
-    def sample(self, flow_output):
-        mean, log_scale = flow_output.split([self.nf_dim, self.nf_dim], dim=-1)
-        scale = torch.exp(-log_scale)
-        predicted_momentum = dist.Normal(mean, scale).sample([self.sample_size])
-        return predicted_momentum.mean(axis=0)
-
-    def loss(self, y_loss_fn, y_pred, y_true, p_pred, p_true, weight=None):
-        y_loss = y_loss_fn(y_pred, y_true, weight=weight)
-        p_loss = self.loss_fn(p_pred, p_true)
-
-        return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
 
 
 def build_model(**kwargs):
