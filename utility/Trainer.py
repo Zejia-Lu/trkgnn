@@ -27,7 +27,7 @@ class Trainer:
         self.acc_threshold = 0.5
         self.loss_fn_p = nn.SmoothL1Loss()
         self.loss_alpha = 0.5
-        self.sample_size = cfg['SNF']['sample_size']
+        # self.sample_size = cfg['SNF']['sample_size']
 
     # def sample(self, flow_output):
     #     mean, log_scale = flow_output.split([1, 1], dim=-1)
