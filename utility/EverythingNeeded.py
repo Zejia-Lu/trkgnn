@@ -22,7 +22,7 @@ def build_model(rank, distributed=False):
         print('Parameters: %i' % sum(p.numel() for p in model.parameters()))
 
         if distributed:
-            return DistributedDataParallel(model, device_ids=[rank], find_unused_parameters=True)
+            return DistributedDataParallel(model, device_ids=[rank])
         else:
             return model
     else:

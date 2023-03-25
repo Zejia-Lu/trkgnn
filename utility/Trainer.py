@@ -29,11 +29,11 @@ class Trainer:
         self.loss_alpha = 0.5
         self.sample_size = cfg['SNF']['sample_size']
 
-    def sample(self, flow_output):
-        mean, log_scale = flow_output.split([1, 1], dim=-1)
-        scale = torch.exp(-log_scale)
-        predicted_momentum = dist.Normal(mean, scale).sample([self.sample_size])
-        return predicted_momentum.mean(axis=0)
+    # def sample(self, flow_output):
+    #     mean, log_scale = flow_output.split([1, 1], dim=-1)
+    #     scale = torch.exp(-log_scale)
+    #     predicted_momentum = dist.Normal(mean, scale).sample([self.sample_size])
+    #     return predicted_momentum.mean(axis=0)
 
     def loss(self, y_loss_fn, y_pred, y_true, p_pred, p_true, weight=None):
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
@@ -122,8 +122,8 @@ class Trainer:
             # calculate momentum prediction
             con_mask = (batch.y == 1)
             p_truth = batch.p[con_mask]
-            p_out = p_out[con_mask]
-            p_pred = self.sample(p_out).squeeze()
+            p_pred = p_out[con_mask]
+            # p_pred = self.sample(p_out).squeeze()
 
             batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
