@@ -188,12 +188,13 @@ class Trainer:
             sum_correct += matches.sum().item()
             sum_total += matches.numel()
             # Count the difference between truth p and predicted p
-            diff_list.append((p_pred - p_truth) * cfg['data']['E0'])
+            diff_list.append((p_pred - p_truth))
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
         # Summarize the validation epoch
         n_batches = len(data_loader)
         diff = torch.cat(diff_list, dim=0)
+        print('diff', diff)
         summary['valid_loss'] = sum_loss / n_batches
         summary['valid_acc'] = sum_correct / sum_total
         summary['valid_batches'] = n_batches

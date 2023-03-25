@@ -46,8 +46,8 @@ class SNFModel(nn.Module):
         super(SNFModel, self).__init__()
         self.nf_dim = nf_dim
         self.gnn = GNN(input_dim, hidden_dim, snf_output_dim=nf_dim, **kwargs)
-        self.stochastic_layer = StochasticLayer(nf_dim, hidden_dim)
-        self.coupling_network = SimpleCouplingNetwork(nf_dim, hidden_dim, nf_dim)
+        self.stochastic_layer = StochasticLayer(nf_dim, 3)
+        self.coupling_network = SimpleCouplingNetwork(nf_dim, 3, nf_dim)
         self.affine_coupling = AffineCoupling(nf_dim, self.coupling_network)
 
     def forward(self, data):
