@@ -106,9 +106,9 @@ class Trainer:
             con_mask = (batch.y == 1)
             p_truth = batch.p[con_mask]
             p_out = p_out[con_mask]
-            p_pred = self.model.sample(p_out).squeeze()
+            p_pred = self.model.module.sample(p_out).squeeze()
 
-            batch_loss = self.model.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
+            batch_loss = self.model.module.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
             batch_loss.backward()
             self.optimizer.step()
@@ -160,9 +160,9 @@ class Trainer:
             con_mask = (batch.y == 1)
             p_truth = batch.p[con_mask]
             p_out = p_out[con_mask]
-            p_pred = self.model.sample(p_out).squeeze()
+            p_pred = self.model.module.sample(p_out).squeeze()
 
-            batch_loss = self.model.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
+            batch_loss = self.model.module.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
             sum_loss += batch_loss
 
             # Count number of correct predictions
