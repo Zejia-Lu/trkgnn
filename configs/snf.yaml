@@ -18,9 +18,10 @@ model:
   hidden_dim: 64
   n_graph_iters: 8
   layer_norm: true
-  sample_size: 1000
 
 loss_func: binary_cross_entropy_with_logits
+SNF:
+  sample_size: 1000
 
 optimizer:
   name: Adam
