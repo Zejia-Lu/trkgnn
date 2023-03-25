@@ -4,6 +4,7 @@ import os
 import sys
 from functools import partial
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
@@ -84,3 +85,30 @@ def config_logging(verbose, output_dir, append=False, rank=0):
     logging.basicConfig(level=log_level, format=log_format, handlers=handlers)
     # Suppress annoying matplotlib debug printouts
     logging.getLogger('matplotlib').setLevel(logging.ERROR)
+
+
+#### Untilities
+def get_item_from_dataloader(dataloader, index):
+    batch = None
+    data_iterator = iter(dataloader)
+    for i in range(index + 1):
+        batch = next(data_iterator)
+    return batch
+
+
+def convert_batch_to_df(batch):
+    # Convert node features (x) to a DataFrame
+    df_node = pd.DataFrame(batch.x.cpu().numpy(), columns=['x', 'y', 'z'])
+
+    # Convert edge_index to a DataFrame with 'start' and 'end' columns
+    edge_index_numpy = batch.edge_index.cpu().numpy()
+    df_edge = pd.DataFrame(edge_index_numpy.T, columns=['start', 'end'])
+
+    # Convert target (y) to a DataFrame
+    df_y = pd.DataFrame(batch.y.cpu().numpy(), columns=['truth'])
+
+    return {
+        'node': df_node,
+        'edge': df_edge,
+        'y': df_y,
+    }

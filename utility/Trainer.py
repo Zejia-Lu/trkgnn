@@ -24,6 +24,7 @@ class Trainer:
         self.rank = device
         self.acc_threshold = 0.5
 
+    @timing_decorator
     def process(self, n_epochs, n_total_epochs, world_size):
         # Determine initial epoch in case resuming training
         start_epoch = 0

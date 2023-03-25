@@ -87,9 +87,6 @@ def get_data_loaders(
         yield train_data_loader, valid_data_loader
 
 
-pass
-
-
 @timing_decorator
 def get_entries(file_path, tree_name):
     return np.sum([
@@ -101,18 +98,10 @@ def get_entries(file_path, tree_name):
 
 @timing_decorator
 def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
-    for chunk, report in up.iterate(
-            [{file_path: tree_name}],
-            step_size=chunk_size,
-            filter_name=branch_name,
-            report=True
-    ):
-
-        if ('global_stop' in cfg['data']) and (report.start > cfg['data']['global_stop']):
-            return None
-        process_len = report.stop - report.start
-        data = []
-        for index, eve in enumerate(chunk):
+    @timing_decorator
+    def convert_to_graph(ch):
+        graph_data = []
+        for index, eve in enumerate(ch):
             node = np.hstack([
                 eve[f'{col}_x'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
@@ -134,7 +123,20 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 w=torch.from_numpy(w.astype(np.float32)),
                 i=torch.from_numpy(np.array([report.start + index])),
             )
-            data.append(graph)
+            graph_data.append(graph)
+        return graph_data
+
+    for chunk, report in up.iterate(
+            [{file_path: tree_name}],
+            step_size=chunk_size,
+            filter_name=branch_name,
+            report=True
+    ):
+
+        if ('global_stop' in cfg['data']) and (report.start > cfg['data']['global_stop']):
+            return None
+        process_len = report.stop - report.start
+        data = convert_to_graph(chunk)
         yield data
 
 
@@ -147,8 +149,6 @@ class GNNTrackData(Dataset):
 
         self.total_len = len(data)
         self.data = data
-
-        # self.data_gen = load_ntuples(input_dir, tree_name, graph_branch, col, chunk_size="100 MB")
 
     def len(self) -> int:
         return self.total_len
