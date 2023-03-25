@@ -176,8 +176,8 @@ class Trainer:
             # calculate momentum prediction
             con_mask = (batch.y == 1)
             p_truth = batch.p[con_mask]
-            p_out = p_out[con_mask]
-            p_pred = self.sample(p_out).squeeze()
+            p_pred = p_out[con_mask]
+            # p_pred = self.sample(p_out).squeeze()
 
             batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
             sum_loss += batch_loss
