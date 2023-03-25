@@ -5,6 +5,7 @@ import yaml
 cfg = {
     "data": {
         "chunk_size": "500 MB",
+        "E0": 1,
     }
 }
 

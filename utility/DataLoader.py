@@ -26,7 +26,7 @@ def get_data_loaders(
         distributed=False, n_workers=0, rank=None, n_ranks=None
 ):
     # load chunk
-    graph_branch = [f'{cfg["data"]["collection"]}_{i}' for i in ["x", "y", "z", "start", "end", "truth", "weight"]]
+    graph_branch = [f'{cfg["data"]["collection"]}_{i}' for i in ["x", "y", "z", "start", "end", "truth", "weight", "p"]]
     chunk_generator = load_ntuples(
         input_dir, cfg['data']['tree_name'], graph_branch, cfg["data"]["collection"], chunk_size
     )
@@ -112,6 +112,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 eve[f'{col}_end'].to_numpy().reshape(-1, 1),
             ]).transpose()
             y = eve[f'{col}_truth'].to_numpy()  # .squeeze()
+            p = eve[f'{col}_p'].to_numpy()  # .squeeze()
             truth_w = eve[f'{col}_weight']
             # re-weight truth edge with fake one
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
@@ -120,6 +121,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 x=torch.from_numpy(node.astype(np.float32)),
                 edge_index=torch.from_numpy(edge_index.astype(np.int64)),
                 y=torch.from_numpy(y.astype(np.float32)),
+                p=torch.from_numpy(p.astype(np.float32)) / cfg['data']['E0'],
                 w=torch.from_numpy(w.astype(np.float32)),
                 i=torch.from_numpy(np.array([report.start + index])),
             )

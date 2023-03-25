@@ -101,8 +101,14 @@ class Trainer:
         for i, batch in enumerate(data_loader):
             batch = batch.to(self.device)
             self.model.zero_grad()
-            batch_output = self.model(batch)
-            batch_loss = self.loss_func(batch_output, batch.y, weight=batch.w)
+            y_pred, p_out = self.model(batch)
+            # calculate momentum prediction
+            con_mask = (batch.y == 1)
+            p_truth = batch.p[con_mask]
+            p_out = p_out[con_mask]
+            p_pred = self.model.sample(p_out).squeeze()
+
+            batch_loss = self.model.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
             batch_loss.backward()
             self.optimizer.step()
@@ -119,11 +125,12 @@ class Trainer:
                 )
 
         # Summarize the epoch
-        n_batches = i + 1
+        n_batches = len(data_loader)
         summary['lr'] = self.optimizer.param_groups[0]['lr']
         summary['train_loss'] = sum_loss / n_batches
         summary['l1'] = get_weight_norm(self.model, 1)
         summary['l2'] = get_weight_norm(self.model, 2)
+        summary['train_batches'] = n_batches
         self.logger.debug(' Processed %i batches', n_batches)
         self.logger.debug(' Model LR %f l1 %.2f l2 %.2f', summary['lr'], summary['l1'], summary['l2'])
         self.logger.info('  Training loss: %.3f', summary['train_loss'])
@@ -140,27 +147,42 @@ class Trainer:
         sum_loss = 0
         sum_correct = 0
         sum_total = 0
+        diff_list = []
 
         # Loop over batches
         for i, batch in enumerate(data_loader):
             batch = batch.to(self.device)
 
             # Make predictions on this batch
-            batch_output = self.model(batch)
-            batch_loss = self.loss_func(batch_output, batch.y).item()
+            y_pred, p_out = self.model(batch)
+
+            # calculate momentum prediction
+            con_mask = (batch.y == 1)
+            p_truth = batch.p[con_mask]
+            p_out = p_out[con_mask]
+            p_pred = self.model.sample(p_out).squeeze()
+
+            batch_loss = self.model.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
             sum_loss += batch_loss
 
             # Count number of correct predictions
-            batch_pred = torch.sigmoid(batch_output)
+            batch_pred = torch.sigmoid(y_pred)
             matches = ((batch_pred > self.acc_threshold) == (batch.y > self.acc_threshold))
             sum_correct += matches.sum().item()
             sum_total += matches.numel()
+            # Count the difference between truth p and predicted p
+            diff_list.append((p_pred - p_truth) * cfg['data']['E0'])
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
         # Summarize the validation epoch
         n_batches = len(data_loader)
+        diff = torch.cat(diff_list, dim=0)
         summary['valid_loss'] = sum_loss / n_batches
         summary['valid_acc'] = sum_correct / sum_total
+        summary['valid_batches'] = n_batches
+        summary['valid_sum_total'] = sum_total
+        summary['valid_dp_mean'] = diff.mean(dim=0).item()
+        summary['valid_dp_std'] = diff.std(dim=0).item()
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
         self.logger.info('  Validation loss: %.3f acc: %.3f' % (summary['valid_loss'], summary['valid_acc']))
         return summary

@@ -70,6 +70,7 @@ def check_data(model, device):
         edge = f[tree_name].arrays([f'{collection}_{i}' for i in ["start", "end"]])
         truth = f[tree_name].arrays([f'{collection}_{i}' for i in ["truth"]])
         weight = f[tree_name].arrays([f'{collection}_{i}' for i in ["weight"]])
+        p = f[tree_name].arrays([f'{collection}_{i}' for i in ["p"]])
 
         data = []
         for i in range(test_n):
@@ -78,6 +79,7 @@ def check_data(model, device):
                 'edge': edge[i],
                 'truth': truth[i],
                 'weight': weight[i],
+                'p': p[i]
             }
 
             out_df = {}
@@ -93,7 +95,8 @@ def check_data(model, device):
                 x=torch.from_numpy(out_df['node'].to_numpy(dtype='float32')),
                 edge_index=torch.from_numpy(out_df['edge'].to_numpy(dtype='int64').transpose()),
                 y=y,
-                w=w
+                w=w,
+                p=torch.from_numpy(out_df['p'].to_numpy(dtype='float32').squeeze()) / cfg['data']['E0'],
             ))
 
         # start testing model
@@ -103,7 +106,14 @@ def check_data(model, device):
         batch = batch.to(device)
         model.zero_grad()
         batch_output = model(batch)
-        batch_loss = loss_func(batch_output, batch.y, weight=batch.w)
+
+        # calculate momentum prediction
+        con_mask = (batch.y == 1)
+        p_truth = batch.p[con_mask]
+        p_out = batch_output[1][con_mask]
+        p_pred = model.sample(p_out).squeeze()
+
+        batch_loss = model.loss(loss_func, batch_output[0], batch.y, p_pred, p_truth, weight=batch.w)
 
         print('data: ', data)
         print('batch: ', batch)
@@ -122,13 +132,13 @@ def check_data(model, device):
 
             return decoded_output
 
-        batch_output = decode_edge_output(batch_output, batch.edge_index, batch.batch)
+        batch_output = decode_edge_output(batch_output[0], batch.edge_index, batch.batch)
 
-        print("==> Loss: ", batch_loss)
+        print("==> Loss: ", batch_loss.item() / batch.num_graphs)
         print("==> Input node size: ", data[0].x.shape)
         print("==> Input edge size: ", data[0].edge_index.shape)
         print("==> Input truth size: ", data[0].y.shape)
-        print("==> Output size: ", len(batch_output))
+        print("==> Output size: ", len(batch_output[0]))
 
         def get_tensor_memory_size(tensor):
             return tensor.element_size() * tensor.nelement()
