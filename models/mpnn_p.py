@@ -41,9 +41,15 @@ class GNN(nn.Module):
         self.node_network = make_mlp(2 * hidden_dim, [hidden_dim] * n_node_layers,
                                      layer_norm=layer_norm)
 
-        # The edge classifier computes final edge scores (one for edge_label, one for momentum)
-        self.edge_classifier = make_mlp(2 * hidden_dim, [hidden_dim, 2],
-                                        output_activation=None)
+        # The edge classifier computes final edge scores
+        self.edge_classifier = make_mlp(
+            2 * hidden_dim, [hidden_dim, 1], output_activation=None
+        )
+
+        # The momentum change regressor computes the momentum change for each edge
+        self.momentum_change_regressor = make_mlp(
+            2 * hidden_dim, [hidden_dim, 1], output_activation=None
+        )
 
     def forward(self, data):
         # Make every edge bi-directional
@@ -75,12 +81,12 @@ class GNN(nn.Module):
         # Compute final edge scores; use original edge directions only
         start_idx, end_idx = data.edge_index
         clf_inputs = torch.cat([x[start_idx], x[end_idx]], dim=1)
-        edge_outputs = self.edge_classifier(clf_inputs)
+        edge_scores = self.edge_classifier(clf_inputs).squeeze(-1)
 
-        # Split the edge_outputs into two separate tensors
-        edge_scores, momentum_changes = edge_outputs.split(1, dim=-1)
+        # Compute momentum change for each edge
+        momentum_changes = self.momentum_change_regressor(clf_inputs).squeeze(-1)
 
-        return edge_scores.squeeze(-1), momentum_changes.squeeze(-1)
+        return edge_scores, momentum_changes
 
 
 def build_model(**kwargs):
