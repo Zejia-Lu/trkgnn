@@ -13,6 +13,7 @@ def get_event(input_dir, collection, index=0, e0=1, tree_name='dp', rndm=1):
         'tree_name': tree_name,
         'E0': e0,
     }
+    cfg['momentum_predict'] = True
 
     # load data
     data_loader = get_data_loaders(
