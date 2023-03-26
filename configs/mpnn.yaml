@@ -9,6 +9,8 @@ data:
   batch_size: 1
   n_workers: 0
 
+# make sure to choose the correct model if to predict momentum
+momentum_predict: true
 model:
   name: mpnn
   input_dim: 3

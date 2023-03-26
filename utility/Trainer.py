@@ -35,11 +35,13 @@ class Trainer:
     #     predicted_momentum = dist.Normal(mean, scale).sample([self.sample_size])
     #     return predicted_momentum.mean(axis=0)
 
-    def loss(self, y_loss_fn, y_pred, y_true, p_pred, p_true, weight=None):
+    def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None):
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
-        p_loss = self.loss_fn_p(p_pred, p_true)
-
-        return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
+        if cfg['momentum_predict']:
+            p_loss = self.loss_fn_p(p_pred, p_true)
+            return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
+        else:
+            return y_loss
 
     @timing_decorator
     def process(self, n_epochs, n_total_epochs, world_size):
@@ -118,12 +120,17 @@ class Trainer:
         for i, batch in enumerate(data_loader):
             batch = batch.to(self.device)
             self.model.zero_grad()
-            y_pred, p_out = self.model(batch)
-            # calculate momentum prediction
-            con_mask = (batch.y == 1)
-            p_truth = batch.p[con_mask]
-            p_pred = p_out[con_mask]
-            # p_pred = self.sample(p_out).squeeze()
+
+            batch_out = self.model(batch)
+            if cfg['momentum_predict']:
+                y_pred, p_out = batch_out
+                # calculate momentum prediction
+                con_mask = (batch.y == 1)
+                p_truth = batch.p[con_mask]
+                p_pred = p_out[con_mask]
+            else:
+                y_pred = batch_out
+                p_truth, p_pred = None, None
 
             batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
@@ -170,14 +177,15 @@ class Trainer:
         for i, batch in enumerate(data_loader):
             batch = batch.to(self.device)
 
-            # Make predictions on this batch
-            y_pred, p_out = self.model(batch)
-
-            # calculate momentum prediction
-            con_mask = (batch.y == 1)
-            p_truth = batch.p[con_mask]
-            p_pred = p_out[con_mask]
-            # p_pred = self.sample(p_out).squeeze()
+            batch_out = self.model(batch)
+            if cfg['momentum_predict']:
+                y_pred, p_out = batch_out
+                con_mask = (batch.y == 1)
+                p_truth = batch.p[con_mask]
+                p_pred = p_out[con_mask]
+            else:
+                y_pred = batch_out
+                p_truth, p_pred = None, None
 
             batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
             sum_loss += batch_loss
@@ -188,12 +196,12 @@ class Trainer:
             sum_correct += matches.sum().item()
             sum_total += matches.numel()
             # Count the difference between truth p and predicted p
-            diff_list.append((p_pred - p_truth))
+            if cfg['momentum_predict']: diff_list.append((p_pred - p_truth))
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
         # Summarize the validation epoch
         n_batches = len(data_loader)
-        diff = torch.cat(diff_list, dim=0)
+        diff = torch.cat(diff_list, dim=0) if cfg['momentum_predict'] else torch.Tensor([-999])
         summary['valid_loss'] = sum_loss / n_batches
         summary['valid_acc'] = sum_correct / sum_total
         summary['valid_batches'] = n_batches
