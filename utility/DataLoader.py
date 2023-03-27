@@ -23,7 +23,7 @@ from utility.FunctionTime import timing_decorator
 @timing_decorator
 def get_data_loaders(
         input_dir, chunk_size, batch_size,
-        distributed=False, n_workers=0, rank=None, n_ranks=None
+        distributed=False, n_workers=0, rank=None, n_ranks=None, shuffle=True,
 ):
     # load chunk
     original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
@@ -44,6 +44,8 @@ def get_data_loaders(
             print("All chunks are loaded")
             break
 
+        if not shuffle:
+            yield GNNTrackData(chunk_data)
         train_data, test_data = train_test_split(chunk_data, test_size=0.3, random_state=cfg['rndm'])
         train_dataset = GNNTrackData(train_data)
         valid_dataset = GNNTrackData(test_data)

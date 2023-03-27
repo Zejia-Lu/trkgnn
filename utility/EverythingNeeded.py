@@ -87,13 +87,12 @@ def config_logging(verbose, output_dir, append=False, rank=0):
     logging.getLogger('matplotlib').setLevel(logging.ERROR)
 
 
-#### Untilities
 def get_item_from_dataloader(dataloader, index):
-    batch = None
     data_iterator = iter(dataloader)
-    for i in range(index + 1):
-        batch = next(data_iterator)
-    return batch
+    for idx, batch in enumerate(data_iterator):
+        if idx == index:
+            return batch
+    raise StopIteration("Index out of range")
 
 
 def convert_batch_to_df(batch):

@@ -171,6 +171,7 @@ class Trainer:
         sum_loss = 0
         sum_correct = 0
         sum_total = 0
+        sum_tp, sum_fp, sum_fn, sum_tn = 0, 0, 0, 0
         diff_list = []
 
         # Loop over batches
@@ -192,9 +193,16 @@ class Trainer:
 
             # Count number of correct predictions
             batch_pred = torch.sigmoid(y_pred)
-            matches = ((batch_pred > self.acc_threshold) == (batch.y > self.acc_threshold))
+            batch_pred = batch_pred > self.acc_threshold
+            truth_label = batch.y > self.acc_threshold
+            matches = (batch_pred == truth_label)
             sum_correct += matches.sum().item()
             sum_total += matches.numel()
+            # Compute true positives, false positives, true negatives, and false negatives
+            sum_tp += ((batch_pred == 1) & (truth_label == 1)).sum().item()
+            sum_fp += ((batch_pred == 1) & (truth_label == 0)).sum().item()
+            sum_tn += ((batch_pred == 0) & (truth_label == 0)).sum().item()
+            sum_fn += ((batch_pred == 0) & (truth_label == 1)).sum().item()
             # Count the difference between truth p and predicted p
             if cfg['momentum_predict']: diff_list.append((p_pred - p_truth))
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
@@ -204,6 +212,10 @@ class Trainer:
         diff = torch.cat(diff_list, dim=0) if cfg['momentum_predict'] else torch.Tensor([-999])
         summary['valid_loss'] = sum_loss / n_batches
         summary['valid_acc'] = sum_correct / sum_total
+        summary["valid_TP"] = sum_tp
+        summary["valid_FP"] = sum_fp
+        summary["valid_TN"] = sum_tn
+        summary["valid_FN"] = sum_fn
         summary['valid_batches'] = n_batches
         summary['valid_sum_total'] = sum_total
         summary['valid_dp_mean'] = diff.mean(dim=0).item()

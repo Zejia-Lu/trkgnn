@@ -8,9 +8,11 @@ data:
   chunk_size: "1024 MB"
   batch_size: 1
   n_workers: 0
+  global_stop: 1000000
+  E0: 2900
 
 # make sure to choose the correct model if to predict momentum
-momentum_predict: true
+momentum_predict: false
 model:
   name: mpnn
   input_dim: 3

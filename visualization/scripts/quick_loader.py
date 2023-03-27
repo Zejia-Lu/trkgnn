@@ -19,11 +19,11 @@ def get_event(input_dir, collection, index=0, e0=1, tree_name='dp', rndm=1):
     data_loader = get_data_loaders(
         input_dir=input_dir,
         chunk_size=100,
-        batch_size=1
+        batch_size=1,
+        shuffle=False,
     )
-    loader, _ = next(data_loader)
 
-    batch = get_item_from_dataloader(loader, index)
+    batch = next(data_loader).get(index)
     df = convert_batch_to_df(batch)
 
     df_edge_value = pd.concat([df['edge'], df['y']], axis=1)
