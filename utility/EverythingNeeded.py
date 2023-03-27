@@ -30,8 +30,8 @@ def build_model(rank, distributed=False):
         return None
 
 
-def build_optimizer(parameters, name='Adam', learning_rate=0.001,
-                    lr_warmup_epochs=0, lr_decay_schedule=None,
+def build_optimizer(parameters, n_rank, name='Adam', learning_rate=0.001,
+                    lr_warmup_epochs=1, lr_decay_schedule=None, lr_scaling='sqrt',
                     **optimizer_args):
     """Construct the training optimizer and scale learning rate.
     Should be called by build_model rather than called directly."""
@@ -40,23 +40,32 @@ def build_optimizer(parameters, name='Adam', learning_rate=0.001,
     if lr_decay_schedule is None:
         lr_decay_schedule = []
 
+    # Compute the scaled learning rate and corresponding initial warmup factor
+    warmup_factor = 1
+    if lr_scaling == 'linear':
+        learning_rate = learning_rate * n_rank
+        warmup_factor = 1. / n_rank
+    elif lr_scaling == 'sqrt':
+        learning_rate = learning_rate * math.sqrt(n_rank)
+        warmup_factor = 1. / math.sqrt(n_rank)
+
     # Construct the optimizer
     optimizer_type = getattr(torch.optim, name)
     optimizer = optimizer_type(parameters, lr=learning_rate, **optimizer_args)
 
     # Prepare the learning rate scheduler
-    def _lr_schedule(epoch, warmup_factor=1, warmup_epochs=0, decays=None):
+    def _lr_schedule(epoch, warm_up_factor=1, warmup_epochs=0, decays=None):
         if decays is None:
             decays = []
         if epoch < warmup_epochs:
-            return (1 - warmup_factor) * epoch / warmup_epochs + warmup_factor
+            return (1 - warm_up_factor) * epoch / warmup_epochs + warm_up_factor
         for decay in decays:
             if decay['start_epoch'] <= epoch < decay['end_epoch']:
                 return decay['factor']
         return 1
 
     lr_schedule = partial(
-        _lr_schedule, warmup_factor=1,
+        _lr_schedule, warmup_factor=warmup_factor,
         warmup_epochs=lr_warmup_epochs, decays=lr_decay_schedule
     )
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_schedule)

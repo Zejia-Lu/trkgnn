@@ -60,7 +60,7 @@ def process(rank, world_size, config_path, verbose):
         print(f"Model is not on the correct device. Expected device: {d}")
 
     # Back to normal training
-    optimizer, lr_scheduler = build_optimizer(model.parameters(), **cfg['optimizer'])
+    optimizer, lr_scheduler = build_optimizer(model.parameters(), n_rank=world_size, **cfg['optimizer'])
     loss = build_loss(cfg['loss_func'])
 
     trainer = Trainer(

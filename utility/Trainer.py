@@ -42,7 +42,7 @@ class Trainer:
         if cfg['momentum_predict']:
             p_loss = self.loss_fn_p(p_pred, p_true)
 
-            self.loss_alpha = 0.5 if self.current_epoch < 30 else 0.3
+            self.loss_alpha = 0.75 if self.current_epoch < 25 else 0.25
 
             return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
         else:
