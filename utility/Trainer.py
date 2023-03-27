@@ -2,6 +2,7 @@ import logging
 import os
 import time
 
+import numpy as np
 import pandas as pd
 import torch
 from torch import nn
@@ -27,6 +28,7 @@ class Trainer:
         self.acc_threshold = 0.5
         self.loss_fn_p = nn.SmoothL1Loss()
         self.loss_alpha = 0.5
+        self.current_epoch = 0
         # self.sample_size = cfg['SNF']['sample_size']
 
     # def sample(self, flow_output):
@@ -39,6 +41,9 @@ class Trainer:
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
         if cfg['momentum_predict']:
             p_loss = self.loss_fn_p(p_pred, p_true)
+
+            self.loss_alpha = 0.5 if self.current_epoch < 30 else 0.3
+
             return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
         else:
             return y_loss
@@ -60,6 +65,7 @@ class Trainer:
         # Loop over epochs
         for epoch in range(start_epoch, end_epoch):
             self.logger.info('Epoch %i' % epoch)
+            self.current_epoch = epoch
 
             # Train on this epoch
             self.process_epoch(epoch, world_size)
