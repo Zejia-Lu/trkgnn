@@ -65,7 +65,7 @@ def build_optimizer(parameters, n_rank, name='Adam', learning_rate=0.001,
         return 1
 
     lr_schedule = partial(
-        _lr_schedule, warmup_factor=warmup_factor,
+        _lr_schedule, warm_up_factor=warmup_factor,
         warmup_epochs=lr_warmup_epochs, decays=lr_decay_schedule
     )
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_schedule)
