@@ -31,18 +31,16 @@ class Trainer:
         self.current_epoch = 0
         # self.sample_size = cfg['SNF']['sample_size']
 
-    # def sample(self, flow_output):
-    #     mean, log_scale = flow_output.split([1, 1], dim=-1)
-    #     scale = torch.exp(-log_scale)
-    #     predicted_momentum = dist.Normal(mean, scale).sample([self.sample_size])
-    #     return predicted_momentum.mean(axis=0)
-
     def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None):
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
         if cfg['momentum_predict']:
             p_loss = self.loss_fn_p(p_pred, p_true)
 
-            self.loss_alpha = 0.75 if self.current_epoch < 25 else 0.25
+            if self.current_epoch < 40:
+                self.loss_alpha = 0.65
+            else:
+                # let loss_alpha decrease from 0.65 to 0.35 in 50 epochs
+                self.loss_alpha = 0.65 - 0.3 * (self.current_epoch - 25) / 50
 
             return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
         else:
