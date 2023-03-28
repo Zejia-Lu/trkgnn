@@ -158,6 +158,7 @@ class Trainer:
         summary['train_loss'] = sum_loss / n_batches
         summary['l1'] = get_weight_norm(self.model, 1)
         summary['l2'] = get_weight_norm(self.model, 2)
+        summary['grad_norm'] = get_grad_norm(self.model)
         summary['train_batches'] = n_batches
         self.logger.debug(' Processed %i batches', n_batches)
         self.logger.debug(' Model LR %f l1 %.2f l2 %.2f', summary['lr'], summary['l1'], summary['l2'])
