@@ -70,9 +70,10 @@ def plot_xyz_plotly(node, edge, threshold=0.5, no_predict=False):
                     ),
                     legendgroup=edge['category'],
                     name=edge['category'] if cat_dict[edge['category']] == 0 else None,
-                    showlegend=(not no_predict) or (not cat_dict[edge['category']]),
+                    showlegend=False if no_predict else (not cat_dict[edge['category']]),
                 ), row=1, col=xi,
             )
+
             cat_dict[edge['category']] = 1
 
         fig.update_xaxes(title_text=f'{x} [mm]', row=1, col=xi, **axis_attr)

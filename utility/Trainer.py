@@ -37,10 +37,10 @@ class Trainer:
             p_loss = self.loss_fn_p(p_pred, p_true)
 
             if self.current_epoch < 40:
-                self.loss_alpha = 0.65
+                self.loss_alpha = 0.95
             else:
-                # let loss_alpha decrease from 0.65 to 0.35 in 50 epochs
-                self.loss_alpha = 0.65 - 0.3 * (self.current_epoch - 25) / 50
+                # let loss_alpha decrease from 0.95 to 0.35 in 50 epochs
+                self.loss_alpha = 0.95 - 0.6 * (self.current_epoch - 25) / 50
 
             return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
         else:
