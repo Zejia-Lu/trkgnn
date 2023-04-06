@@ -36,11 +36,11 @@ class Trainer:
         if cfg['momentum_predict']:
             p_loss = self.loss_fn_p(p_pred, p_true)
 
-            if self.current_epoch < 40:
-                self.loss_alpha = 0.95
-            else:
-                # let loss_alpha decrease from 0.95 to 0.35 in 50 epochs
-                self.loss_alpha = 0.95 - 0.6 * (self.current_epoch - 25) / 50
+            # if self.current_epoch < 40:
+            #     self.loss_alpha = 0.95
+            # else:
+            #     # let loss_alpha decrease from 0.95 to 0.35 in 50 epochs
+            #     self.loss_alpha = 0.95 - 0.6 * (self.current_epoch - 25) / 50
 
             return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
         else:
@@ -210,6 +210,7 @@ class Trainer:
             sum_fn += ((batch_pred == 0) & (truth_label == 1)).sum().item()
             # Count the difference between truth p and predicted p
             if cfg['momentum_predict']: diff_list.append((p_pred - p_truth) / p_truth)
+            if cfg['momentum_predict']: print((p_pred - p_truth) / p_truth)
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
         # Summarize the validation epoch
@@ -226,6 +227,7 @@ class Trainer:
         summary['valid_dp_mean'] = diff.mean(dim=0).item()
         summary['valid_dp_std'] = diff.std(dim=0).item()
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
+        self.logger.debug(' -- momentum mean %.3f std %.3f ' % (summary['valid_dp_mean'], summary['valid_dp_std']))
         self.logger.info('  Validation loss: %.3f acc: %.3f' % (summary['valid_loss'], summary['valid_acc']))
         return summary
 
