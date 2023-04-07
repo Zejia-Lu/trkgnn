@@ -237,15 +237,13 @@ class Trainer:
         summary['valid_dp_mean'] = diff.mean(dim=0).item()
         summary['valid_dp_std'] = diff.std(dim=0).item()
 
-        # Check for NaN values
-        has_nan = torch.isnan(diff).any()
-        print(f"Contains NaN values: {has_nan.item()}")
-
-        # Check for Inf values
-        has_inf = torch.isinf(diff).any()
-        print(f"Contains Inf values: {has_inf.item()}")
-
-        print("mean: ", diff.mean(), ", std: ", diff.std())
+        # # Check for NaN values
+        # has_nan = torch.isnan(diff).any()
+        # print(f"Contains NaN values: {has_nan.item()}")
+        #
+        # # Check for Inf values
+        # has_inf = torch.isinf(diff).any()
+        # print(f"Contains Inf values: {has_inf.item()}")
 
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
         self.logger.debug(' -- momentum mean %.3f std %.3f ' % (summary['valid_dp_mean'], summary['valid_dp_std']))
