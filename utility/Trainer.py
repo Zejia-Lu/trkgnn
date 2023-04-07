@@ -213,6 +213,14 @@ class Trainer:
                 p_err = (p_pred - p_truth) / p_truth
                 finite_mask = torch.isfinite(p_err)
                 diff_list.append(p_err[finite_mask])
+
+                # Count the number of NaN values
+                nan_count = torch.isnan(p_err).sum()
+                self.logger.debug(f"Number of NaN values: {nan_count.item()}")
+
+                # Count the number of Inf values
+                inf_count = torch.isinf(p_err).sum()
+                self.logger.debug(f"Number of Inf values: {inf_count.item()}")
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
         # Summarize the validation epoch
