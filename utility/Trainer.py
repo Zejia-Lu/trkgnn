@@ -216,9 +216,6 @@ class Trainer:
         # Summarize the validation epoch
         n_batches = len(data_loader)
         diff = torch.cat(diff_list, dim=0) if cfg['momentum_predict'] else torch.Tensor([-999])
-
-        print('diff: ', diff, flush=True)
-
         summary['valid_loss'] = sum_loss / n_batches
         summary['valid_acc'] = sum_correct / sum_total
         summary["valid_TP"] = sum_tp
@@ -229,6 +226,17 @@ class Trainer:
         summary['valid_sum_total'] = sum_total
         summary['valid_dp_mean'] = diff.mean(dim=0).item()
         summary['valid_dp_std'] = diff.std(dim=0).item()
+
+        # Check for NaN values
+        has_nan = torch.isnan(diff).any()
+        print(f"Contains NaN values: {has_nan.item()}")
+
+        # Check for Inf values
+        has_inf = torch.isinf(diff).any()
+        print(f"Contains Inf values: {has_inf.item()}")
+
+        print("mean: ", diff.mean(), ", std: ", diff.std())
+
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
         self.logger.debug(' -- momentum mean %.3f std %.3f ' % (summary['valid_dp_mean'], summary['valid_dp_std']))
         self.logger.info('  Validation loss: %.3f acc: %.3f' % (summary['valid_loss'], summary['valid_acc']))
