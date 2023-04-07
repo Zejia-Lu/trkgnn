@@ -216,6 +216,9 @@ class Trainer:
         # Summarize the validation epoch
         n_batches = len(data_loader)
         diff = torch.cat(diff_list, dim=0) if cfg['momentum_predict'] else torch.Tensor([-999])
+
+        print('diff: ', diff, flush=True)
+
         summary['valid_loss'] = sum_loss / n_batches
         summary['valid_acc'] = sum_correct / sum_total
         summary["valid_TP"] = sum_tp
