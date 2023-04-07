@@ -209,8 +209,10 @@ class Trainer:
             sum_tn += ((batch_pred == 0) & (truth_label == 0)).sum().item()
             sum_fn += ((batch_pred == 0) & (truth_label == 1)).sum().item()
             # Count the difference between truth p and predicted p
-            if cfg['momentum_predict']: diff_list.append((p_pred - p_truth) / p_truth)
-            if cfg['momentum_predict']: print((p_pred - p_truth) / p_truth)
+            if cfg['momentum_predict']:
+                p_err = (p_pred - p_truth) / p_truth
+                finite_mask = torch.isfinite(p_err)
+                diff_list.append(p_err[finite_mask])
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
         # Summarize the validation epoch
