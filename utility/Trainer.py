@@ -21,7 +21,7 @@ class Trainer:
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.loss_func = loss_func
-        self.device = device
+        self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
         self.rank = device
@@ -267,7 +267,10 @@ class Trainer:
         """Write a checkpoint for the model"""
         assert cfg['output_dir'] is not None
         # If using DistributedDataParallel, just save the wrapped model state
-        model_state_dict = (self.model.module.state_dict())
+        if self.distributed:
+            model_state_dict = self.model.module.state_dict()
+        else:
+            model_state_dict = self.model.state_dict()
         checkpoint = dict(
             checkpoint_id=checkpoint_id,
             model=model_state_dict,

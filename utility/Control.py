@@ -23,6 +23,8 @@ def load_config(file_str: str) -> None:
         set_default(cfg['data'], 'E0', 1)
         set_default(cfg['data'], 'chunk_size', "10 MB")
 
+        cfg['plot_path'] = os.path.join(cfg['output_dir'], 'plots')
+
 
 if __name__ == '__main__':
     load_config(r'scripts/config.yaml')

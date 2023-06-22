@@ -63,7 +63,7 @@ def check_model(device):
 
 def check_data(model, device):
     tree_name = 'dp'
-    collection = 'TagTrk1'
+    collection = 'DigitizedTagTrk'
     test_n = 10
     with up.open('/Users/avencast/CLionProjects/darkshine-simulation/workspace/Tracker_GNN.root') as f:
         node = f[tree_name].arrays([f'{collection}_{i}' for i in ["x", "y", "z"]])
