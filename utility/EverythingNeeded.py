@@ -77,7 +77,7 @@ def build_loss(name):
     return loss_func
 
 
-def config_logging(verbose, output_dir, append=False, rank=0):
+def config_logging(verbose, output_dir, append=False, rank=0, prefix='out'):
     log_format = '%(asctime)s %(levelname)s %(message)s'
     log_level = logging.DEBUG if verbose else logging.INFO
     stream_handler = logging.StreamHandler(stream=sys.stdout)
@@ -86,7 +86,7 @@ def config_logging(verbose, output_dir, append=False, rank=0):
     if output_dir is not None:
         log_dir = output_dir
         os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, 'out_%i.log' % rank)
+        log_file = os.path.join(log_dir, f'{prefix}_%i.log' % rank)
         mode = 'a' if append else 'w'
         file_handler = logging.FileHandler(log_file, mode=mode)
         file_handler.setLevel(log_level)

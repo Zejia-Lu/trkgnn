@@ -1,12 +1,9 @@
 import logging
 import os
-import time
 
-import numpy as np
 import pandas as pd
 import torch
 from torch import nn
-import pyro.distributions as dist
 
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
@@ -26,15 +23,16 @@ class Trainer:
         self.distributed = distributed
         self.rank = device
         self.acc_threshold = 0.5
-        self.loss_fn_p = nn.SmoothL1Loss()
-        self.loss_alpha = 0.5
         self.current_epoch = 0
-        # self.sample_size = cfg['SNF']['sample_size']
+        self.train_samples = 0
+        self.valid_samples = 0
 
-    def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None):
+    @classmethod
+    def loss(cls, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None, loss_alpha=0.5):
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
         if cfg['momentum_predict']:
-            p_loss = self.loss_fn_p(p_pred, p_true)
+            loss_fn_p = nn.SmoothL1Loss()
+            p_loss = loss_fn_p(p_pred, p_true)
 
             # if self.current_epoch < 40:
             #     self.loss_alpha = 0.95
@@ -42,7 +40,7 @@ class Trainer:
             #     # let loss_alpha decrease from 0.95 to 0.35 in 50 epochs
             #     self.loss_alpha = 0.95 - 0.6 * (self.current_epoch - 25) / 50
 
-            return self.loss_alpha * y_loss + (1 - self.loss_alpha) * p_loss
+            return loss_alpha * y_loss + (1 - loss_alpha) * p_loss
         else:
             return y_loss
 
@@ -65,11 +63,17 @@ class Trainer:
             self.logger.info('Epoch %i' % epoch)
             self.current_epoch = epoch
 
+            self.train_samples = 0
+            self.valid_samples = 0
+
             # Train on this epoch
             self.process_epoch(epoch, world_size)
             if self.rank == 0:
                 self.write_checkpoint(epoch)
             self.lr_scheduler.step()
+
+            self.logger.info(
+                f'Epoch {epoch} trained {self.train_samples} samples and validated {self.valid_samples} samples')
 
         # Save summary, checkpoint
         self.save_summary()
@@ -87,7 +91,6 @@ class Trainer:
             rank=self.rank,
             n_ranks=world_size,
         )
-
         itr = 0
         while True:
             try:
@@ -122,6 +125,8 @@ class Trainer:
 
         # Loop over training batches
         for i, batch in enumerate(data_loader):
+            self.train_samples += batch.num_graphs
+
             batch = batch.to(self.device)
             self.model.zero_grad()
 
@@ -181,6 +186,8 @@ class Trainer:
 
         # Loop over batches
         for i, batch in enumerate(data_loader):
+            self.valid_samples += batch.num_graphs
+
             batch = batch.to(self.device)
 
             batch_out = self.model(batch)

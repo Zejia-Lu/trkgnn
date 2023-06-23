@@ -131,10 +131,12 @@ def parallel_process(config_path, world_size, verbose):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
 
-    mp.spawn(process,
-             args=(world_size, config_path, verbose),
-             nprocs=world_size,
-             join=True)
+    mp.spawn(
+        process,
+        args=(world_size, config_path, verbose),
+        nprocs=world_size,
+        join=True
+    )
 
 
 if __name__ == '__main__':

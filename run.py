@@ -3,6 +3,8 @@ from utility.Control import load_config
 
 from jobs.quick_test import quick_test
 from jobs.DDP import parallel_process
+from jobs.Apply import apply_to_ds
+from utility.FunctionTime import print_accumulated_times
 
 
 def main(arg):
@@ -13,6 +15,10 @@ def main(arg):
     if arg.command == 'DDP':
         parallel_process(arg.config, args.world_size, args.verbose)
 
+    if arg.command == 'apply':
+        load_config(arg.config)
+        apply_to_ds(arg.input, arg.model, arg.output)
+        print_accumulated_times()
     pass
 
 
@@ -35,6 +41,17 @@ if __name__ == '__main__':
     DDP.add_argument('config', default='config.yaml', type=str, help="the config file")
     DDP.add_argument('-w', '--world_size', type=int, default=1)
     DDP.add_argument('-v', '--verbose', action='store_true')
+
+    # parser for evaluation/application
+    apply = subparsers.add_parser('apply', help='apply the model to the dataset')
+    # add argument for the input dataset (can be multiple)
+    apply.add_argument('input', nargs='+', type=str, help="the input dataset directories")
+    # add argument for the model directory
+    apply.add_argument('-m', '--model', default='model', type=str, help="the model directory")
+    # add argument for the output directory (default: current directory)
+    apply.add_argument('-o', '--output', default='.', type=str, help="the output directory")
+    # add argument for training config file
+    apply.add_argument('-c', '--config', default='config.yaml', type=str, help="the config file for training")
 
     args = par.parse_args()
 

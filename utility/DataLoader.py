@@ -23,7 +23,7 @@ from utility.FunctionTime import timing_decorator
 @timing_decorator
 def get_data_loaders(
         input_dir, chunk_size, batch_size,
-        distributed=False, n_workers=0, rank=None, n_ranks=None, shuffle=True,
+        distributed=False, n_workers=0, rank=None, n_ranks=None, shuffle=True, apply=False
 ):
     # load chunk
     original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
@@ -46,50 +46,62 @@ def get_data_loaders(
 
         if not shuffle:
             yield GNNTrackData(chunk_data)
-        train_data, test_data = train_test_split(chunk_data, test_size=0.3, random_state=cfg['rndm'])
-        train_dataset = GNNTrackData(train_data)
-        valid_dataset = GNNTrackData(test_data)
+        elif apply:
+            data_loader = DataLoader(
+                GNNTrackData(chunk_data),
+                sampler=None,
+                shuffle=False,
+                batch_size=batch_size,
+                collate_fn=default_collate,
+                num_workers=n_workers,
+                pin_memory=True,
+            )
+            yield data_loader
+        else:
+            train_data, test_data = train_test_split(chunk_data, test_size=0.3, random_state=cfg['rndm'])
+            train_dataset = GNNTrackData(train_data)
+            valid_dataset = GNNTrackData(test_data)
 
-        collate_fn = default_collate
-        loader_args = dict(
-            batch_size=batch_size,
-            collate_fn=collate_fn,
-            num_workers=n_workers,
-            pin_memory=True,
-        )
+            collate_fn = default_collate
+            loader_args = dict(
+                batch_size=batch_size,
+                collate_fn=collate_fn,
+                num_workers=n_workers,
+                pin_memory=True,
+            )
 
-        train_sampler, valid_sampler = None, None
-        if distributed:
-            train_sampler = DistributedSampler(train_dataset, rank=rank, num_replicas=n_ranks)
-            valid_sampler = DistributedSampler(valid_dataset, rank=rank, num_replicas=n_ranks)
-        train_data_loader = DataLoader(
-            train_dataset,
-            sampler=train_sampler,
-            shuffle=(train_sampler is None),
-            **loader_args
-        )
-        valid_data_loader = (
-            DataLoader(
-                valid_dataset,
-                sampler=valid_sampler,
+            train_sampler, valid_sampler = None, None
+            if distributed:
+                train_sampler = DistributedSampler(train_dataset, rank=rank, num_replicas=n_ranks)
+                valid_sampler = DistributedSampler(valid_dataset, rank=rank, num_replicas=n_ranks)
+            train_data_loader = DataLoader(
+                train_dataset,
+                sampler=train_sampler,
+                shuffle=(train_sampler is None),
                 **loader_args
             )
-            if valid_dataset is not None else None
-        )
+            valid_data_loader = (
+                DataLoader(
+                    valid_dataset,
+                    sampler=valid_sampler,
+                    **loader_args
+                )
+                if valid_dataset is not None else None
+            )
 
-        # print(f"Dataset size: {len(train_dataset)}")
-        # print(f"Total number of GPUs: {n_ranks}")
-        # print(f"Rank (GPU index): {rank}")
-        #
-        # sample_indices = [i.i for i in train_data_loader]
-        # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
-        # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
-        #
-        # sample_indices = [i.i for i in valid_data_loader]
-        # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
-        # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
+            # print(f"Dataset size: {len(train_dataset)}")
+            # print(f"Total number of GPUs: {n_ranks}")
+            # print(f"Rank (GPU index): {rank}")
+            #
+            # sample_indices = [i.i for i in train_data_loader]
+            # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
+            # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
+            #
+            # sample_indices = [i.i for i in valid_data_loader]
+            # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
+            # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
 
-        yield train_data_loader, valid_data_loader
+            yield train_data_loader, valid_data_loader
 
 
 @timing_decorator
@@ -139,7 +151,8 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             [{file_path: tree_name}],
             step_size=chunk_size,
             filter_name=branch_name,
-            report=True
+            cut=f'{cfg["data"]["collection"]}_weight>0',
+            report=True,
     ):
 
         if ('global_stop' in cfg['data']) and (report.start > cfg['data']['global_stop']):
