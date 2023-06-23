@@ -141,7 +141,7 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
+            batch_loss = Trainer.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
             batch_loss.backward()
             self.optimizer.step()
@@ -200,7 +200,7 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
+            batch_loss = Trainer.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
             sum_loss += batch_loss
 
             # Count number of correct predictions

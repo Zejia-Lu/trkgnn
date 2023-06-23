@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 from typing import Tuple
@@ -55,6 +56,8 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str):
     model.eval()
 
     # For each input_dir, apply the model
+    df_edge_list = []
+    df_node_list = []
     for i, data_dir in enumerate(input_dir):
         logger.info(f"Processing {i + 1}/{len(input_dir)}: {data_dir}")
 
@@ -72,12 +75,8 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str):
         while True:
             try:
                 apply_loader = next(data_generator)
-
-                print('data: ', apply_loader)
-                print('len: ', len(apply_loader))
                 # Loop over batches
                 for j, batch in enumerate(apply_loader):
-                    print('  j: ', j)
                     batch = batch.to(cfg['device'])
                     batch_out = model(batch)
                     if cfg['momentum_predict']:
@@ -89,13 +88,29 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str):
                     y_pred = torch.sigmoid(y_pred)
 
                     # Unbatch the graphs
-                    unbatched_graphs = unbatch_graphs(batch, y_pred, p_pred)
+                    df_edge, df_node = unbatch_graphs(batch, y_pred, p_pred)
 
-                    a = 0
+                    df_edge_list.append(df_edge)
+                    df_node_list.append(df_node)
+
                 itr += 1
             except StopIteration:
                 print("Finish")
                 break
+
+    df_edge = pd.concat(df_edge_list).reset_index(drop=True)
+    df_node = pd.concat(df_node_list).reset_index(drop=True)
+    del df_edge_list
+    del df_node_list
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+
+    # Save the results
+    graph_dir = os.path.join(output_dir, 'graphs')
+    os.makedirs(graph_dir, exist_ok=True)
+    df_edge.to_csv(os.path.join(graph_dir, 'edge.csv'), index=False, header=True)
+    df_node.to_csv(os.path.join(graph_dir, 'node.csv'), index=False, header=True)
 
 
 @timing_decorator
@@ -109,8 +124,6 @@ def unbatch_graphs(batch, y_pred, p_pred=None):
     y_pred_list = y_pred.split(edge_split_sizes, dim=0)
     x_list = batch.x.split(node_split_sizes, dim=0)
 
-    print(batch.i)
-
     p_truth_list = None
     p_pred_list = None
     if p_pred is not None:
@@ -122,7 +135,8 @@ def unbatch_graphs(batch, y_pred, p_pred=None):
         x = x_list[i]  # node features for current graph
 
         edge_data_dict = {
-            'edge_index': edge_index.tolist(),
+            'evt_num': batch.evt_num[i].item(),
+            'run_num': batch.run_num[i].item(),
             'edge_start_index': edge_index[:, 0].tolist(),
             'edge_end_index': edge_index[:, 1].tolist(),
             'y_truth': y_truth_list[i].tolist(),
@@ -130,7 +144,8 @@ def unbatch_graphs(batch, y_pred, p_pred=None):
         }
 
         node_data_dict = {
-            'idx': list(range(x.size(0))),
+            'evt_num': batch.evt_num[i].item(),
+            'run_num': batch.run_num[i].item(),
             'x': x[:, 0].tolist(),
             'y': x[:, 1].tolist(),
             'z': x[:, 2].tolist(),
@@ -146,4 +161,4 @@ def unbatch_graphs(batch, y_pred, p_pred=None):
         all_edge_dfs.append(edge_df)
         all_node_dfs.append(node_df)
 
-    return all_edge_dfs, all_node_dfs
+    return pd.concat(all_edge_dfs).reset_index(drop=True), pd.concat(all_node_dfs).reset_index()

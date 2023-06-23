@@ -30,6 +30,7 @@ def get_data_loaders(
     if cfg['momentum_predict']: original_branch += ["p"]
 
     graph_branch = [f'{cfg["data"]["collection"]}_{i}' for i in original_branch]
+    graph_branch += ['run_num', 'evt_num']
     chunk_generator = load_ntuples(
         input_dir, cfg['data']['tree_name'], graph_branch, cfg["data"]["collection"], chunk_size
     )
@@ -139,6 +140,8 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 y=torch.from_numpy(y.astype(np.float32)),
                 w=torch.from_numpy(w.astype(np.float32)),
                 i=torch.from_numpy(np.array([report.start + index])),
+                run_num=torch.from_numpy(np.array([eve['run_num']])),
+                evt_num=torch.from_numpy(np.array([eve['evt_num']])),
             )
             if cfg['momentum_predict']:
                 p = eve[f'{col}_p'].to_numpy()
