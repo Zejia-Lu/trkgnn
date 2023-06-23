@@ -117,14 +117,17 @@ def process(rank, world_size, config_path, verbose):
     else:
         print(f"==> Finish running training on {cfg['device']}.")
 
+    print_accumulated_times()
     # visualization the training summary
+    if torch.cuda.is_available() and rank != 0:
+        return
     os.makedirs(cfg['plot_path'], exist_ok=True)
     df, t = read_local_csv(os.path.join(cfg['output_dir'], 'summaries_0.csv'))
     fig = visual_summary_log(df, t)
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.png'))
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.pdf'))
 
-    print_accumulated_times()
+
 
 
 def parallel_process(config_path, world_size, verbose):
