@@ -26,21 +26,34 @@ class Trainer:
         self.current_epoch = 0
         self.train_samples = 0
         self.valid_samples = 0
+        # for combined loss
+        self.prev_y_loss = 0
+        self.prev_p_loss = 0
+        self.y_weight = 0.5
+        self.p_weight = 0.5
 
-    @classmethod
-    def loss(cls, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None, loss_alpha=0.5):
+    def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None):
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
         if cfg['momentum_predict']:
             loss_fn_p = nn.SmoothL1Loss()
             p_loss = loss_fn_p(p_pred, p_true)
 
-            # if self.current_epoch < 40:
-            #     self.loss_alpha = 0.95
-            # else:
-            #     # let loss_alpha decrease from 0.95 to 0.35 in 50 epochs
-            #     self.loss_alpha = 0.95 - 0.6 * (self.current_epoch - 25) / 50
+            # calculate rates of decrease
+            y_rate = abs(self.prev_y_loss - y_loss) if self.prev_y_loss else torch.tensor(0.)
+            p_rate = abs(self.prev_p_loss - p_loss) if self.prev_p_loss else torch.tensor(0.)
 
-            return loss_alpha * y_loss + (1 - loss_alpha) * p_loss
+            # calculate new weights based on rates of decrease
+            # (add small constant in denominator to avoid division by zero)
+            self.y_weight = y_rate / (y_rate + p_rate + 1e-10)
+            self.p_weight = 1 - self.y_weight
+
+            # update previous losses
+            self.prev_y_loss = y_loss
+            self.prev_p_loss = p_loss
+
+            print(y_rate.item(), p_rate.item(), self.y_weight.item(), self.p_weight.item())
+
+            return self.y_weight.item() * y_loss + self.p_weight.item() * p_loss
         else:
             return y_loss
 
@@ -141,7 +154,7 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            batch_loss = Trainer.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
+            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
             batch_loss.backward()
             self.optimizer.step()
@@ -200,7 +213,7 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            batch_loss = Trainer.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
+            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
             sum_loss += batch_loss
 
             # Count number of correct predictions
