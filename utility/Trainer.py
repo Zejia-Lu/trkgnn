@@ -51,8 +51,6 @@ class Trainer:
             self.prev_y_loss = y_loss
             self.prev_p_loss = p_loss
 
-            print(y_rate.item(), p_rate.item(), self.y_weight.item(), self.p_weight.item())
-
             return self.y_weight.item() * y_loss + self.p_weight.item() * p_loss
         else:
             return y_loss
