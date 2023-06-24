@@ -45,6 +45,7 @@ def load_ntuples(f_path, tree_name, branch_name, col, chunk_size="100 MB", momen
             cut=f'{col}_weight>0',
             report=True,
     ):
+        print(f'Loading {report.start} to {report.stop}...')
         data = convert_to_graph(chunk)
         yield data
 
