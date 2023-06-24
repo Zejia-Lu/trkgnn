@@ -93,8 +93,9 @@ class Trainer:
 
     @timing_decorator
     def process_epoch(self, epoch, world_size):
+        data_input_dir = cfg['data']['input_graph_dir'] if cfg['data']['read_from_graph'] else cfg['data']['input_dir']
         data_generator = get_data_loaders(
-            cfg['data']['input_dir'],
+            data_input_dir,
             chunk_size=cfg['data']['chunk_size'],
             batch_size=cfg['data']['batch_size'],
             distributed=self.distributed,

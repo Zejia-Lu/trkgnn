@@ -22,6 +22,8 @@ def load_config(file_str: str) -> None:
         set_default(cfg, 'momentum_predict', False)
         set_default(cfg['data'], 'E0', 1)
         set_default(cfg['data'], 'chunk_size', "10 MB")
+        set_default(cfg['data'], 'read_from_graph', False)
+        set_default(cfg['data'], 'global_stop_graph_file', -1)
 
         cfg['plot_path'] = os.path.join(cfg['output_dir'], 'plots')
 

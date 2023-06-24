@@ -57,22 +57,39 @@ output_dir: ./output
 rndm: 1
 
 data:
+  #--------------------------------
+  # There are two ways to read data:
+  # 1. Read from ROOT (default)
+  # 2. Read from graph
+  #    -- Graph is built from script: `extra_script/graph_to_disk.py`
+  #    -- One Graph file is a list of graphs to be one chunk
+  #--------------------------------
+  # --> Read from ROOT (disable if read from graph)
   # input directory for data
-  input_dir: "/lustre/collider/zhangyulei/DeepLearning/Tracking/workspace/data/Tracker_GNN.bepc.magnet.root"
-  # tree_name
+  input_dir: "/Users/avencast/CLionProjects/darkshine-simulation/workspace/Tracker_GNN*.root"
   tree_name: 'dp'
-  # which collection to use
-  collection: 'TagTrk1'
+  # how many total events to train
+  global_stop: 1000000
   # how many events loaded per training period (Not total)
   chunk_size: "50 MB"
-  # batch size
-  batch_size: 64
-  # number of works using CPU
+
+  # --> Read from graph
+  read_from_graph: true
+  # input directory for graph
+  input_graph_dir: "/Users/avencast/CLionProjects/darkshine-simulation/workspace/test_output/"
+  # how many files to read per training period (Not total) 
+  # (set to -1 to read all files)
+  global_stop_graph_file: -1
+
+  # --> General Data Loader Settings
+  # which collection to use
+  collection: 'TagTrk1'
+  batch_size: 1
+  # number of works using CPU (0 disable multi-threading)
   n_workers: 0
-  # how many events for training (total)
-  global_stop: 50000
   # initial incident energy (normalization constant)
   E0: 2900
+  
 
 # make sure to choose the correct model if to predict momentum
 momentum_predict: true

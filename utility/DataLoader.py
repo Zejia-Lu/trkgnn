@@ -1,4 +1,5 @@
 # System imports
+import glob
 import os
 from typing import Union, List, Tuple
 
@@ -25,15 +26,18 @@ def get_data_loaders(
         input_dir, chunk_size, batch_size,
         distributed=False, n_workers=0, rank=None, n_ranks=None, shuffle=True, apply=False
 ):
-    # load chunk
-    original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
-    if cfg['momentum_predict']: original_branch += ["p"]
+    # if read from graph defined in config
+    if cfg['data']['read_from_graph']:
+        chunk_generator = load_graph(os.path.join(input_dir, cfg["data"]["collection"]))
+    else:
+        original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
+        if cfg['momentum_predict']: original_branch += ["p"]
 
-    graph_branch = [f'{cfg["data"]["collection"]}_{i}' for i in original_branch]
-    graph_branch += ['run_num', 'evt_num']
-    chunk_generator = load_ntuples(
-        input_dir, cfg['data']['tree_name'], graph_branch, cfg["data"]["collection"], chunk_size
-    )
+        graph_branch = [f'{cfg["data"]["collection"]}_{i}' for i in original_branch]
+        graph_branch += ['run_num', 'evt_num']
+        chunk_generator = load_ntuples(
+            input_dir, cfg['data']['tree_name'], graph_branch, cfg["data"]["collection"], chunk_size
+        )
 
     while True:
         try:
@@ -162,6 +166,24 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             return None
         data = convert_to_graph(chunk)
         yield data
+
+
+@timing_decorator
+def load_graph(graph_file_list):
+    # check if the directory exists
+    if os.path.isdir(graph_file_list):
+        files = glob.glob(os.path.join(graph_file_list, '*.pt'))
+    else:
+        print(f"The directory {graph_file_list} does not exist.")
+        raise FileNotFoundError
+
+    if cfg['data']['global_stop_graph_file'] >= 0:
+        files = files[:cfg['data']['global_stop_graph_file']]
+
+    for file_name in files:
+        # Load the file and yield it
+        tensor = torch.load(file_name)
+        yield tensor
 
 
 class GNNTrackData(Dataset):
