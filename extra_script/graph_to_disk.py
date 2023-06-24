@@ -1,9 +1,7 @@
 # External imports
 import numpy as np
-import pandas as pd
 import uproot as up
 import torch
-from torch_geometric.loader import DataLoader
 import torch_geometric
 import os
 
