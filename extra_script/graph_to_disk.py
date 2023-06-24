@@ -90,6 +90,7 @@ if __name__ == '__main__':
         while True:
             try:
                 data_list = next(graph_data)
+                print(f"[{col}]:  Saving {n_graph}th graph")
                 torch.save(data_list, os.path.join(args.output, col, f'graph_list.{n_graph}.{args.tag}.pt'))
                 n_graph += 1
             except StopIteration:
