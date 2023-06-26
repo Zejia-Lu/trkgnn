@@ -91,12 +91,7 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
     Long64_t rec_i = 0;
     for (Long64_t i = 0; i < nentries; i++) {
 
-        if (tag_i >= nentries_tag) {
-            cout << "tag tree exhausted" << endl;
-            break; // Break when tree_tag is exhausted
-        }
-
-        if (i % (nentries / nentries) == 0) {
+        if (i % (nentries / 25) == 0) {
             cout << "Processing event " << i << " of " << nentries << endl;
         }
 
@@ -119,10 +114,8 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
         gnn_tag_no_tracks = 0;
         gnn_rec_no_tracks = 0;
 
-
         tree_tag->GetEntry(tag_i);
         while (tag_evt == cur_evt && tag_run == cur_run) {
-            cout << "tag_i: " << tag_i << ", tag_evt: " << tag_evt << endl;
             fill_values(gnn_tag, tag_nhits, tag_values);
             gnn_tag_no_tracks++;
             tag_i++;
@@ -132,7 +125,6 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
 
         tree_rec->GetEntry(rec_i);
         while (rec_evt == cur_evt && rec_run == cur_run) {
-            cout << "rec_i: " << rec_i << ", rec_evt: " << rec_evt << endl;
             fill_values(gnn_rec, rec_nhits, rec_values);
             gnn_rec_no_tracks++;
             rec_i++;
