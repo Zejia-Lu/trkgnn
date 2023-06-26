@@ -58,7 +58,6 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str):
     logger.info(f"model_dir: {model_dir}")
     logger.info(f"output_dir: {output_dir}")
 
-
     # Build model and load model
     model = build_model(cfg['device'], distributed=False)
     tar = torch.load(model_dir, map_location=cfg['device'])
