@@ -44,7 +44,8 @@ def setup():
     cfg['data']['read_from_graph'] = False
 
     # Run all events
-    del cfg['data']['global_stop']
+    if 'global_stop' in cfg['data']:
+        del cfg['data']['global_stop']
 
 
 @timing_decorator
