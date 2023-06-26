@@ -93,7 +93,7 @@ def config_logging(verbose, output_dir, append=False, rank=0, prefix='out'):
         handlers.append(file_handler)
     logging.basicConfig(level=log_level, format=log_format, handlers=handlers)
     # Suppress annoying matplotlib debug printouts
-    logging.getLogger('matplotlib').setLevel(logging.ERROR)
+    # logging.getLogger('matplotlib').setLevel(logging.ERROR)
 
 
 def get_item_from_dataloader(dataloader, index):
