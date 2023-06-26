@@ -110,6 +110,7 @@ class Trainer:
                 try:
                     train_data.sampler.set_epoch(epoch)
                 except AttributeError:
+                    self.logger.info('Sampler has no set_epoch method')
                     pass
 
                 train_sum = self.train_iteration(train_data)

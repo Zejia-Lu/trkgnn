@@ -4,10 +4,7 @@ import torch_geometric
 import uproot as up
 import awkward as ak
 import seaborn as sns
-from matplotlib import pyplot
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel
-from torch.utils.data import DataLoader
 from torch_geometric.data import Batch
 
 # Locals
