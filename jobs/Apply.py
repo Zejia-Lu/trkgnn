@@ -50,7 +50,7 @@ def setup():
 
 @timing_decorator
 @torch.no_grad()
-def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str):
+def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str, save: bool = False):
     config_logging(True, output_dir=output_dir, prefix='apply')
     setup()
     logger = logging.getLogger("Apply")
@@ -121,10 +121,12 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str):
                     y_pred = torch.sigmoid(y_pred)
 
                     # Unbatch the graphs
-                    df_edge, df_node, all_graphs = unbatch_graphs(batch, y_pred, p_pred)
-
-                    df_edge_list.append(df_edge)
-                    df_node_list.append(df_node)
+                    if save:
+                        df_edge, df_node, all_graphs = unbatch_graphs(batch, y_pred, p_pred, save=True)
+                        df_edge_list.append(df_edge)
+                        df_node_list.append(df_node)
+                    else:
+                        all_graphs = unbatch_graphs(batch, y_pred, p_pred, save=False)
 
                     # Cluster the tracks
                     tracks += [*cluster_tracks(all_graphs)]
@@ -140,25 +142,25 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str):
                 logger.info(f"Output root file: {output_root_file}")
                 break
 
-    df_edge = pd.concat(df_edge_list).reset_index(drop=True)
-    df_node = pd.concat(df_node_list).reset_index(drop=True)
-    del df_edge_list
-    del df_node_list
+    if save:
+        df_edge = pd.concat(df_edge_list).reset_index(drop=True)
+        df_node = pd.concat(df_node_list).reset_index(drop=True)
+        del df_edge_list
+        del df_node_list
+        # Save the results
+        graph_dir = os.path.join(output_dir, 'graphs')
+        os.makedirs(graph_dir, exist_ok=True)
+        df_edge.to_csv(os.path.join(graph_dir, 'edge.csv'), index=False, header=True)
+        df_node.to_csv(os.path.join(graph_dir, 'node.csv'), index=False, header=True)
+        del df_edge, df_node
+
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     gc.collect()
 
-    # Save the results
-    graph_dir = os.path.join(output_dir, 'graphs')
-    os.makedirs(graph_dir, exist_ok=True)
-    df_edge.to_csv(os.path.join(graph_dir, 'edge.csv'), index=False, header=True)
-    df_node.to_csv(os.path.join(graph_dir, 'node.csv'), index=False, header=True)
-
-    del df_edge, df_node
-
 
 @timing_decorator
-def unbatch_graphs(batch, y_pred, p_pred=None) -> Tuple[pd.DataFrame, pd.DataFrame, list[nx.Graph]]:
+def unbatch_graphs(batch, y_pred, p_pred=None, save: bool = False):
     all_edge_dfs = []
     all_node_dfs = []
     all_graphs = []
@@ -200,11 +202,12 @@ def unbatch_graphs(batch, y_pred, p_pred=None) -> Tuple[pd.DataFrame, pd.DataFra
             edge_data_dict['p_truth'] = p_truth_list[i].tolist()
             edge_data_dict['p_pred'] = p_pred_list[i].tolist()
 
-        edge_df = pd.DataFrame(edge_data_dict)
-        node_df = pd.DataFrame(node_data_dict)
+        if save:
+            edge_df = pd.DataFrame(edge_data_dict)
+            node_df = pd.DataFrame(node_data_dict)
 
-        all_edge_dfs.append(edge_df)
-        all_node_dfs.append(node_df)
+            all_edge_dfs.append(edge_df)
+            all_node_dfs.append(node_df)
 
         # Create new Graph
         graph = nx.Graph()
@@ -237,7 +240,10 @@ def unbatch_graphs(batch, y_pred, p_pred=None) -> Tuple[pd.DataFrame, pd.DataFra
         graph = graph.to_undirected()
         all_graphs.append(graph)
 
-    return pd.concat(all_edge_dfs).reset_index(drop=True), pd.concat(all_node_dfs).reset_index(), all_graphs
+    if save:
+        return pd.concat(all_edge_dfs).reset_index(drop=True), pd.concat(all_node_dfs).reset_index(), all_graphs
+    else:
+        return all_graphs
 
 
 # track clustering

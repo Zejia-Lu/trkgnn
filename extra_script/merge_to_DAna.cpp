@@ -135,6 +135,10 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
 
         // fill cloned tree
         treeOut->Fill();
+
+        // clean
+        for (auto &v : gnn_tag) v.clear();
+        for (auto &v : gnn_rec) v.clear();
     }
 
     cout << "Writing to file" << endl;

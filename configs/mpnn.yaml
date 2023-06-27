@@ -30,7 +30,8 @@ data:
 momentum_predict: false
 model:
   name: mpnn
-  input_dim: 3
+  input_dim: 3 # (x,y,z)
+#  input_dim: 6 # (x,y,z, Bx, By, Bz)
   n_edge_layers: 4
   n_node_layers: 4
   hidden_dim: 64

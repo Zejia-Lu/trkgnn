@@ -32,6 +32,7 @@ def get_data_loaders(
     else:
         original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
         if cfg['momentum_predict']: original_branch += ["p"]
+        if cfg['data']['graph_with_BField']: original_branch += ['Bx', 'By', 'Bz']
 
         graph_branch = [f'{cfg["data"]["collection"]}_{i}' for i in original_branch]
         graph_branch += ['run_num', 'evt_num']
@@ -124,11 +125,15 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
     def convert_to_graph(ch):
         graph_data = []
         for index, eve in enumerate(ch):
-            node = np.hstack([
+            node = np.hstack([*[
                 eve[f'{col}_x'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_z'].to_numpy().reshape(-1, 1)
-            ])
+            ], *([
+                eve[f'{col}_Bx'].to_numpy().reshape(-1, 1),
+                eve[f'{col}_By'].to_numpy().reshape(-1, 1),
+                eve[f'{col}_Bz'].to_numpy().reshape(-1, 1),
+            ] if cfg['data']['graph_with_BField'] else [])])
             edge_index = np.hstack([
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_end'].to_numpy().reshape(-1, 1),

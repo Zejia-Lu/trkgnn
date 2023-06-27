@@ -17,7 +17,7 @@ def main(arg):
 
     if arg.command == 'apply':
         load_config(arg.config)
-        apply_to_ds(arg.input, arg.model, arg.output)
+        apply_to_ds(arg.input, arg.model, arg.output, arg.save)
         print_accumulated_times()
     pass
 
@@ -52,6 +52,8 @@ if __name__ == '__main__':
     apply.add_argument('-o', '--output', default='.', type=str, help="the output directory")
     # add argument for training config file
     apply.add_argument('-c', '--config', default='config.yaml', type=str, help="the config file for training")
+    # add argument for saving graphs
+    apply.add_argument('-s', '--save', action='store_true', help="save the graphs to the output directory")
 
     args = par.parse_args()
 

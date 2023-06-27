@@ -6,14 +6,17 @@ import torch_geometric
 import os
 
 
-def load_ntuples(f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000):
+def load_ntuples(f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1, ):
     def convert_to_graph(ch):
         g_data = []
         for index, eve in enumerate(ch):
             node = np.hstack([
                 eve[f'{col}_x'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
-                eve[f'{col}_z'].to_numpy().reshape(-1, 1)
+                eve[f'{col}_z'].to_numpy().reshape(-1, 1),
+                eve[f'{col}_Bx'].to_numpy().reshape(-1, 1) * scale_b,
+                eve[f'{col}_By'].to_numpy().reshape(-1, 1) * scale_b,
+                eve[f'{col}_Bz'].to_numpy().reshape(-1, 1) * scale_b,
             ])
             edge_index = np.hstack([
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
@@ -30,6 +33,8 @@ def load_ntuples(f_path, tree_name, branch_name, col, chunk_size="100 MB", momen
                 y=torch.from_numpy(y.astype(np.float32)),
                 w=torch.from_numpy(w.astype(np.float32)),
                 i=torch.from_numpy(np.array([report.start + index])),
+                run_num=torch.from_numpy(np.array([eve['run_num']])),
+                evt_num=torch.from_numpy(np.array([eve['evt_num']])),
             )
             if momentum_predict:
                 p = eve[f'{col}_p'].to_numpy()
@@ -61,11 +66,15 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--momentum_predict', type=bool, default=True, help="whether to predict momentum")
     parser.add_argument('-e', '--e0', type=float, default=8000, help="the beam energy")
     parser.add_argument('-t', '--tag', type=str, default='out', help="the output file name suffix")
+    parser.add_argument('-b', '--bfield', action='store_true', default=False, help="whether to use bfield")
+    parser.add_argument('-s', '--scale_b', type=float, default=100,
+                        help="the scale factor for magnetic field (general ~ 1.5T, so default is 100)")
 
     args = parser.parse_args()
 
     origin_br = ["x", "y", "z", "start", "end", "weight", "truth"]
     if args.momentum_predict: origin_br += ["p"]
+    if args.bfield: origin_br += ["Bx", "By", "Bz"]
     # load data
     file_path = args.file
     print(f"Processing {file_path}")
@@ -81,10 +90,11 @@ if __name__ == '__main__':
         print(f"[{col}]:  Output to {os.path.join(args.output, col)}")
 
         collection_branch = [f'{col}_{br}' for br in origin_br]
-
+        collection_branch += ['evt_num', 'run_num']
         graph_data = load_ntuples(
             file_path, 'dp', collection_branch, col, chunk_size=args.chunk,
-            momentum_predict=args.momentum_predict, e0=args.e0
+            momentum_predict=args.momentum_predict, e0=args.e0,
+            scale_b=args.scale_b,
         )
 
         n_graph = 0
@@ -96,6 +106,3 @@ if __name__ == '__main__':
                 n_graph += 1
             except StopIteration:
                 break
-
-        # for index, eve in enumerate(data):
-        #     torch.save(eve, os.path.join(args.output, f'graph_{index}.pt'))
