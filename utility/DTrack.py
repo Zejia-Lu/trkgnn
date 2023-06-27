@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import networkx as nx
 
 
@@ -10,10 +12,11 @@ class DTrack:
         self.p_f = -1
         self.vertex_hit = None
         self.end_hit = None
+        self.full_track = 0
 
-        pass
+        self.eps = 2.0 # mm
 
-    def from_graph(self, graph: nx.Graph, e0=1.0):
+    def from_graph(self, graph: nx.Graph, e0=1.0, tracker_boundary: Tuple[float, float] = None):
         self.no_hits = len(graph.nodes)
         self.evt_num = graph.graph['evt_num']
         self.run_num = graph.graph['run_num']
@@ -27,3 +30,17 @@ class DTrack:
 
         self.vertex_hit = graph.nodes[nodes_order[0]]
         self.end_hit = graph.nodes[nodes_order[-1]]
+
+        # full track: the vertex node and the end node are at the boarder of the detector
+        if tracker_boundary is not None:
+            vertex_good = abs(self.vertex_hit['z'] - tracker_boundary[0]) < self.eps
+            end_good = abs(self.end_hit['z'] - tracker_boundary[1]) < self.eps
+
+            if vertex_good and end_good:
+                self.full_track = 1
+            elif vertex_good and not end_good:
+                self.full_track = 2
+            elif end_good and not vertex_good:
+                self.full_track = 3
+            else:
+                self.full_track = 0

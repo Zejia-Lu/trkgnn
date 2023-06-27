@@ -96,6 +96,7 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str, save: boo
             "end_x": "f",
             "end_y": "f",
             "end_z": "f",
+            "full_track": "i",
         }
         output_root_dir = os.path.join(output_dir, f"out_roots")
         os.makedirs(output_root_dir, exist_ok=True)
@@ -280,7 +281,11 @@ def cluster_tracks(graph: list[nx.Graph]) -> list[DTrack]:
         # Add the edges to the sub-graphs
         for subgraph in subgraphs.values():
             track = DTrack()
-            track.from_graph(gr.subgraph(subgraph.nodes), cfg['data']['E0'])
+            track.from_graph(
+                gr.subgraph(subgraph.nodes), cfg['data']['E0'],
+                tracker_boundary=(cfg['data']['tracker_boundary']['z_min'], cfg['data']['tracker_boundary']['z_max'])
+                if 'tracker_boundary' in cfg['data'] else None,
+            )
             clustered_tracks.append(track)
 
     return clustered_tracks
@@ -301,6 +306,7 @@ def export_to_root(tree: up.TTree, tracks: list[DTrack], br_dicts: dict):
         track_dict['end_x'] = np.append(track_dict['end_x'], t.end_hit['x'])
         track_dict['end_y'] = np.append(track_dict['end_y'], t.end_hit['y'])
         track_dict['end_z'] = np.append(track_dict['end_z'], t.end_hit['z'])
+        track_dict['full_track'] = np.append(track_dict['full_track'], t.full_track)
 
     tree.extend(track_dict)
     pass
