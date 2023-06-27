@@ -6,18 +6,22 @@ import torch_geometric
 import os
 
 
-def load_ntuples(f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1, ):
+def load_ntuples(
+        f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1,
+        graph_with_bfield=True):
     def convert_to_graph(ch):
         g_data = []
         for index, eve in enumerate(ch):
-            node = np.hstack([
+            node = np.hstack([*[
                 eve[f'{col}_x'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
-                eve[f'{col}_z'].to_numpy().reshape(-1, 1),
-                eve[f'{col}_Bx'].to_numpy().reshape(-1, 1) * scale_b,
-                eve[f'{col}_By'].to_numpy().reshape(-1, 1) * scale_b,
-                eve[f'{col}_Bz'].to_numpy().reshape(-1, 1) * scale_b,
-            ])
+                eve[f'{col}_z'].to_numpy().reshape(-1, 1)
+            ],
+                              *([
+                                    eve[f'{col}_Bx'].to_numpy().reshape(-1, 1) * scale_b,
+                                    eve[f'{col}_By'].to_numpy().reshape(-1, 1) * scale_b,
+                                    eve[f'{col}_Bz'].to_numpy().reshape(-1, 1) * scale_b,
+                                ] if graph_with_bfield else [])])
             edge_index = np.hstack([
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_end'].to_numpy().reshape(-1, 1),
@@ -94,7 +98,7 @@ if __name__ == '__main__':
         graph_data = load_ntuples(
             file_path, 'dp', collection_branch, col, chunk_size=args.chunk,
             momentum_predict=args.momentum_predict, e0=args.e0,
-            scale_b=args.scale_b,
+            scale_b=args.scale_b, graph_with_bfield=args.bfield
         )
 
         n_graph = 0

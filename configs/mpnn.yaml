@@ -26,6 +26,14 @@ data:
   n_workers: 0
   E0: 2900
 
+  # This is mainly for application stage (automatically true)
+  #   -- it's more or less determined in the training stage and graph building stage
+  #   -- If input graph or trained model has 3 features, then it's trained without BField
+  #   -- If input graph or trained model has 6 features, then it's trained with BField
+  graph_with_BField: true
+  # for scale BField to the order of position
+  scale_factor_BField: 100.0
+
 # make sure to choose the correct model if to predict momentum
 momentum_predict: false
 model:

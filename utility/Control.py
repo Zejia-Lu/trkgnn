@@ -25,6 +25,7 @@ def load_config(file_str: str) -> None:
         set_default(cfg['data'], 'read_from_graph', False)
         set_default(cfg['data'], 'global_stop_graph_file', -1)
         set_default(cfg['data'], 'graph_with_BField', True)
+        set_default(cfg['data'], 'scale_factor_BField', 100.0)
 
         cfg['plot_path'] = os.path.join(cfg['output_dir'], 'plots')
 
