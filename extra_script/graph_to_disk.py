@@ -54,7 +54,7 @@ def load_ntuples(
             cut=f'{col}_weight>0',
             report=True,
     ):
-        print(f'Loading {report.start} to {report.stop}...')
+        print(f'Loading {report.start} to {report.stop}...', flush=True)
         data = convert_to_graph(chunk)
         yield data
 
@@ -81,17 +81,17 @@ if __name__ == '__main__':
     if args.bfield: origin_br += ["Bx", "By", "Bz"]
     # load data
     file_path = args.file
-    print(f"Processing {file_path}")
+    print(f"Processing {file_path}", flush=True)
     cur_tree = up.open(f'{file_path}:dp')
     # Get branch names
     branches = cur_tree.keys()
 
     collections = set(branch.rsplit('_', 1)[0] for branch in branches if branch.rsplit('_', 1)[-1] in origin_br)
-    print(collections)
+    print(collections, flush=True)
 
     for col in list(collections):
         os.makedirs(os.path.join(args.output, col), exist_ok=True)
-        print(f"[{col}]:  Output to {os.path.join(args.output, col)}")
+        print(f"[{col}]:  Output to {os.path.join(args.output, col)}", flush=True)
 
         collection_branch = [f'{col}_{br}' for br in origin_br]
         collection_branch += ['evt_num', 'run_num']
@@ -105,7 +105,7 @@ if __name__ == '__main__':
         while True:
             try:
                 data_list = next(graph_data)
-                print(f"[{col}]:  Saving {n_graph}th graph")
+                print(f"[{col}]:  Saving {n_graph}th graph", flush=True)
                 torch.save(data_list, os.path.join(args.output, col, f'graph_list.{n_graph}.{args.tag}.pt'))
                 n_graph += 1
             except StopIteration:
