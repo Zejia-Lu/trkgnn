@@ -19,7 +19,7 @@ from sklearn.model_selection import train_test_split
 
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
-
+from utility.EverythingNeeded import get_memory_size_MB
 
 @timing_decorator
 def get_data_loaders(
@@ -64,9 +64,19 @@ def get_data_loaders(
             )
             yield data_loader
         else:
+            large_graphs= []
+
+            # Move elements from chunk_data to large_graphs based on large size
+            indices_to_move = [i for i, element in enumerate(chunk_data) if get_memory_size_MB(element) > 1.0]
+            if len(indices_to_move) > 0:
+                print(f"{len(indices_to_move)} large graphs Detected")
+            for i in sorted(indices_to_move, reverse=True):
+                large_graphs.append(chunk_data[i])
+                del chunk_data[i]
+
             train_data, test_data = train_test_split(chunk_data, test_size=0.3, random_state=cfg['rndm'])
             train_dataset = GNNTrackData(train_data)
-            valid_dataset = GNNTrackData(test_data)
+            valid_dataset = GNNTrackData(test_data + large_graphs)
 
             collate_fn = default_collate
             loader_args = dict(
