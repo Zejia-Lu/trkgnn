@@ -166,7 +166,7 @@ class Trainer:
             if torch.cuda.is_available():
                 print_gpu_info(self.logger)
             self.model.zero_grad()
-            batch_out = self.model(batch)
+            batch_out = self.model(batch, verbose=True if get_memory_size_MB(batch) > 1 else False)
 
             if torch.cuda.is_available():
                 print_gpu_info(self.logger)
