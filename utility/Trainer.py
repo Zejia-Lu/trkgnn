@@ -1,6 +1,7 @@
 import logging
 import os
 import gc
+import subprocess
 
 import pandas as pd
 import torch
@@ -156,17 +157,23 @@ class Trainer:
                 # Print memory usage at the start of each batch
                 self.logger.debug(f'[Batch {i}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
                 self.logger.debug(f'[Batch {i}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+                print_gpu_info()
             self.logger.debug(f'[Batch {i}] Batch size: {get_memory_size_MB(batch)} MB')
 
             self.train_samples += batch.num_graphs
             batch = batch.to(self.device)
+            if torch.cuda.is_available():
+                print_gpu_info()
             self.model.zero_grad()
             batch_out = self.model(batch)
 
             if torch.cuda.is_available():
+                print_gpu_info()
                 # Print memory usage at the start of each batch
-                self.logger.debug(f'[Batch {i}] Model Output Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(f'[Batch {i}] Model Output Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[Batch {i}] Model Output Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[Batch {i}] Model Output Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             if cfg['momentum_predict']:
                 y_pred, p_out = batch_out
@@ -183,15 +190,19 @@ class Trainer:
 
             if torch.cuda.is_available():
                 # Print memory usage at the start of each batch
-                self.logger.debug(f'[Batch {i}] Loss Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(f'[Batch {i}] Loss Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[Batch {i}] Loss Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[Batch {i}] Loss Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             batch_loss.backward()
 
             if torch.cuda.is_available():
                 # Print memory usage at the start of each batch
-                self.logger.debug(f'[Batch {i}] Lo Back Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(f'[Batch {i}] Lo Back Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[Batch {i}] Lo Back Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[Batch {i}] Lo Back Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             self.optimizer.step()
             sum_loss += batch_loss.item()
@@ -392,3 +403,10 @@ def get_memory_size_MB(data: torch.tensor):
             total_memory += value.numel() * value.element_size()
 
     return total_memory / (1024 * 1024)
+
+
+def print_gpu_info():
+    COMMAND = "nvidia-smi"
+    process = subprocess.Popen(COMMAND.split(), stdout=subprocess.PIPE)
+    output, error = process.communicate()
+    print(output.decode())
