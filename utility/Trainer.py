@@ -196,21 +196,7 @@ class Trainer:
 
             batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
-            if torch.cuda.is_available():
-                # Print memory usage at the start of each batch
-                self.logger.debug(
-                    f'[Batch {i}] Loss Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(
-                    f'[Batch {i}] Loss Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
-
             batch_loss.backward()
-
-            if torch.cuda.is_available():
-                # Print memory usage at the start of each batch
-                self.logger.debug(
-                    f'[Batch {i}] Lo Back Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(
-                    f'[Batch {i}] Lo Back Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             self.optimizer.step()
             sum_loss += batch_loss.item()
@@ -238,11 +224,11 @@ class Trainer:
                 self.logger.debug(
                     f'[After Batch {i}] Peak memory reserved: {torch.cuda.max_memory_reserved() / (1024 * 1024)} MB')
 
-            del batch, batch_out, batch_loss
-            del y_pred, p_out, p_pred, p_truth
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            gc.collect()
+            # del batch, batch_out, batch_loss
+            # del y_pred, p_out, p_pred, p_truth
+            # if torch.cuda.is_available():
+            #     torch.cuda.empty_cache()
+            # gc.collect()
 
         # Summarize the epoch
         n_batches = len(data_loader)
@@ -319,11 +305,11 @@ class Trainer:
                 diff_list.append(p_err[finite_mask])
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
-            del batch, batch_out, batch_loss
-            del y_pred, p_out, p_pred, p_truth
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            gc.collect()
+            # del batch, batch_out, batch_loss
+            # del y_pred, p_out, p_pred, p_truth
+            # if torch.cuda.is_available():
+            #     torch.cuda.empty_cache()
+            # gc.collect()
 
         # Summarize the validation epoch
         n_batches = len(data_loader)
