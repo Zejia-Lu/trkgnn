@@ -1,5 +1,6 @@
 import logging
 import os
+import gc
 
 import pandas as pd
 import torch
@@ -150,6 +151,7 @@ class Trainer:
                 con_mask = (batch.y == 1)
                 p_truth = batch.p[con_mask]
                 p_pred = p_out[con_mask]
+                del con_mask
             else:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
@@ -169,6 +171,13 @@ class Trainer:
                     '  train batch %i loss %.4f l1 %.2f l2 %.4f grad %.3f idx %i',
                     i, batch_loss.item(), l1, l2, grad_norm, batch.i[0].item()
                 )
+
+            del batch, batch_out, batch_loss
+            del y_pred, p_out, p_pred, p_truth
+            del l1, l2, grad_norm
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
 
         # Summarize the epoch
         n_batches = len(data_loader)
