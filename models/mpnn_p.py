@@ -14,6 +14,7 @@ from .utils import make_mlp
 
 from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info
 
+
 class GNN(nn.Module):
     """
     A message-passing graph network which takes a graph with:
@@ -53,6 +54,9 @@ class GNN(nn.Module):
             2 * hidden_dim, [hidden_dim, 1], output_activation=None
         )
 
+        # solve memory issue
+        self._set_static_graph(True)
+
     def forward(self, data, verbose=False):
         # Make every edge bi-directional
         send_idx = torch.cat([data.edge_index[0], data.edge_index[1]], dim=0)
@@ -67,44 +71,42 @@ class GNN(nn.Module):
         if verbose:
             print_gpu_info(prefix="node_encoder")
 
-        # Loop over graph iterations
-        for i in range(self.n_graph_iters):
-            # Previous hidden state
-            x0 = x
+        # We can move the checkpointing to this level
+        def computation(x):
+            for i in range(self.n_graph_iters):
+                # Previous hidden state
+                x0 = x
 
-            if verbose:
-                print_gpu_info(prefix="graph iteration {}: 1".format(i))
-            # Compute new edge features
-            edge_inputs = torch.cat([x[send_idx], x[recv_idx]], dim=1)
-            if verbose:
-                print_gpu_info(prefix="graph iteration {}: 2".format(i))
-            # e = self.edge_network(edge_inputs)
-            e = checkpoint(self.edge_network, edge_inputs)
-            if verbose:
-                print_gpu_info(prefix="graph iteration {}: 3".format(i))
+                if verbose:
+                    print_gpu_info(prefix="graph iteration {}: 1".format(i))
+                # Compute new edge features
+                edge_inputs = torch.cat([x[send_idx], x[recv_idx]], dim=1)
+                if verbose:
+                    print_gpu_info(prefix="graph iteration {}: 2".format(i))
+                e = self.edge_network(edge_inputs)
+                if verbose:
+                    print_gpu_info(prefix="graph iteration {}: 3".format(i))
 
-            # Sum edge features coming into each node
-            aggr_messages = scatter_add(e, recv_idx, dim=0, dim_size=x.shape[0])
-            if verbose:
-                print_gpu_info(prefix="graph iteration {}: 4".format(i))
-            # Compute new node features
-            node_inputs = torch.cat([x, aggr_messages], dim=1)
-            if verbose:
-                print_gpu_info(prefix="graph iteration {}: 5".format(i))
-            # x = self.node_network(node_inputs)
-            x = checkpoint(self.node_network, node_inputs)
-            if verbose:
-                print_gpu_info(prefix="graph iteration {}: 6".format(i))
-            # Residual connection
-            x = x + x0
-            if verbose:
-                print_gpu_info(prefix="graph iteration {}: 7".format(i))
-            del edge_inputs, node_inputs, aggr_messages
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+                # Sum edge features coming into each node
+                aggr_messages = scatter_add(e, recv_idx, dim=0, dim_size=x.shape[0])
+                if verbose:
+                    print_gpu_info(prefix="graph iteration {}: 4".format(i))
+                # Compute new node features
+                node_inputs = torch.cat([x, aggr_messages], dim=1)
+                if verbose:
+                    print_gpu_info(prefix="graph iteration {}: 5".format(i))
+                x = self.node_network(node_inputs)
+                if verbose:
+                    print_gpu_info(prefix="graph iteration {}: 6".format(i))
+                # Residual connection
+                x = x + x0
+                if verbose:
+                    print_gpu_info(prefix="graph iteration {}: 7".format(i))
 
-            if verbose:
-                print_gpu_info(prefix="graph iteration {}".format(i))
+            return x
+
+        # Call computation with checkpoint
+        x = checkpoint(computation, x)
 
         # Compute final edge scores; use original edge directions only
         start_idx, end_idx = data.edge_index
