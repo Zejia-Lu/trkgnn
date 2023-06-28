@@ -1,6 +1,7 @@
 import logging
 import math
 import os
+import subprocess
 import sys
 from functools import partial
 
@@ -120,3 +121,29 @@ def convert_batch_to_df(batch):
         'edge': df_edge,
         'y': df_y,
     }
+
+
+def get_memory_size_MB(data: torch.tensor):
+    total_memory = 0
+    for attr, value in data:
+        if torch.is_tensor(value):
+            # itemsize gives memory size per element
+            # numel gives number of elements
+            total_memory += value.numel() * value.element_size()
+
+    return total_memory / (1024 * 1024)
+
+
+def print_gpu_info(logger=None, prefix=None):
+    if torch.cuda.is_available():
+        COMMAND = "nvidia-smi --query-gpu=memory.used,memory.free,memory.total --format=csv"
+        process = subprocess.Popen(COMMAND.split(), stdout=subprocess.PIPE)
+        output, error = process.communicate()
+
+        pre = ""
+        if prefix is not None:
+            pre = prefix
+        if logger is not None:
+            logger.debug(f'{pre}: {output.decode()}')
+        else:
+            print(f'{pre}: {output.decode()}')

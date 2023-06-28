@@ -11,6 +11,7 @@ from torch_scatter import scatter_add
 # Locals
 from .utils import make_mlp
 
+from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info
 
 class GNN(nn.Module):
     """
@@ -51,13 +52,19 @@ class GNN(nn.Module):
             2 * hidden_dim, [hidden_dim, 1], output_activation=None
         )
 
-    def forward(self, data):
+    def forward(self, data, verbose=False):
         # Make every edge bi-directional
         send_idx = torch.cat([data.edge_index[0], data.edge_index[1]], dim=0)
         recv_idx = torch.cat([data.edge_index[1], data.edge_index[0]], dim=0)
 
+        if verbose:
+            print_gpu_info(prefix="GNN forward")
+
         # Encode the graph features into the hidden space
         x = self.node_encoder(data.x)
+
+        if verbose:
+            print_gpu_info(prefix="node_encoder")
 
         # Loop over graph iterations
         for i in range(self.n_graph_iters):
@@ -77,6 +84,9 @@ class GNN(nn.Module):
 
             # Residual connection
             x = x + x0
+
+            if verbose:
+                print_gpu_info(prefix="graph iteration {}".format(i))
 
         # Compute final edge scores; use original edge directions only
         start_idx, end_idx = data.edge_index

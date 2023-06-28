@@ -10,6 +10,7 @@ from torch import nn
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
 from utility.DataLoader import get_data_loaders
+from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info
 
 
 class Trainer:
@@ -393,20 +394,3 @@ def get_grad_norm(model, norm_type=2):
         norm += p.grad.data.norm(norm_type).item() ** norm_type
     return norm ** (1. / norm_type)
 
-
-def get_memory_size_MB(data: torch.tensor):
-    total_memory = 0
-    for attr, value in data:
-        if torch.is_tensor(value):
-            # itemsize gives memory size per element
-            # numel gives number of elements
-            total_memory += value.numel() * value.element_size()
-
-    return total_memory / (1024 * 1024)
-
-
-def print_gpu_info(logger):
-    COMMAND = "nvidia-smi --query-gpu=memory.used,memory.free,memory.total --format=csv"
-    process = subprocess.Popen(COMMAND.split(), stdout=subprocess.PIPE)
-    output, error = process.communicate()
-    logger.debug(output.decode())
