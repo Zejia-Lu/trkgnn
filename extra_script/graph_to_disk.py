@@ -8,20 +8,26 @@ import os
 
 def load_ntuples(
         f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1,
-        graph_with_bfield=True):
+        graph_with_bfield=True, only_bfield_y=False):
     def convert_to_graph(ch):
         g_data = []
         for index, eve in enumerate(ch):
+            bfield=None
+            if graph_with_bfield:
+                bfield = [
+                    eve[f'{col}_Bx'].to_numpy().reshape(-1, 1) * scale_b,
+                    eve[f'{col}_By'].to_numpy().reshape(-1, 1) * scale_b,
+                    eve[f'{col}_Bz'].to_numpy().reshape(-1, 1) * scale_b,
+                ] if not only_bfield_y else [
+                    eve[f'{col}_By'].to_numpy().reshape(-1, 1) * scale_b,
+                ]
+
             node = np.hstack([*[
                 eve[f'{col}_x'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_z'].to_numpy().reshape(-1, 1)
-            ],
-                              *([
-                                    eve[f'{col}_Bx'].to_numpy().reshape(-1, 1) * scale_b,
-                                    eve[f'{col}_By'].to_numpy().reshape(-1, 1) * scale_b,
-                                    eve[f'{col}_Bz'].to_numpy().reshape(-1, 1) * scale_b,
-                                ] if graph_with_bfield else [])])
+            ],*bfield])
+
             edge_index = np.hstack([
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_end'].to_numpy().reshape(-1, 1),
@@ -73,12 +79,13 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--bfield', action='store_true', default=False, help="whether to use bfield")
     parser.add_argument('-s', '--scale_b', type=float, default=100,
                         help="the scale factor for magnetic field (general ~ 1.5T, so default is 100)")
+    parser.add_argument('-y', '--only_bfield_y', action='store_true', default=False, help="whether to use only bfield_y")
 
     args = parser.parse_args()
 
     origin_br = ["x", "y", "z", "start", "end", "weight", "truth"]
     if args.momentum_predict: origin_br += ["p"]
-    if args.bfield: origin_br += ["Bx", "By", "Bz"]
+    if args.bfield: origin_br += ["Bx", "By", "Bz"] if not args.only_bfield_y else ["By"]
     # load data
     file_path = args.file
     print(f"Processing {file_path}", flush=True)
@@ -98,7 +105,8 @@ if __name__ == '__main__':
         graph_data = load_ntuples(
             file_path, 'dp', collection_branch, col, chunk_size=args.chunk,
             momentum_predict=args.momentum_predict, e0=args.e0,
-            scale_b=args.scale_b, graph_with_bfield=args.bfield
+            scale_b=args.scale_b, graph_with_bfield=args.bfield,
+            only_bfield_y=args.only_bfield_y
         )
 
         n_graph = 0

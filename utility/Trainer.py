@@ -140,9 +140,9 @@ class Trainer:
 
                 if torch.cuda.is_available():
                     # Print memory usage at the start of each batch
-                    self.logger.debug(
+                    self.logger.info(
                         f'[Iteration: {itr}] Peak Memory allocated: {torch.cuda.max_memory_allocated() / (1024 * 1024)} MB')
-                    self.logger.debug(
+                    self.logger.info(
                         f'[Iteration: {itr}] Peak Memory reserved: {torch.cuda.max_memory_reserved() / (1024 * 1024)} MB')
 
                 itr += 1
