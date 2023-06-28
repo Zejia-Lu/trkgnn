@@ -54,9 +54,6 @@ class GNN(nn.Module):
             2 * hidden_dim, [hidden_dim, 1], output_activation=None
         )
 
-        # solve memory issue
-        self._set_static_graph(True)
-
     def forward(self, data, verbose=False):
         # Make every edge bi-directional
         send_idx = torch.cat([data.edge_index[0], data.edge_index[1]], dim=0)
