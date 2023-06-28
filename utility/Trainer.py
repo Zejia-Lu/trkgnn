@@ -108,8 +108,10 @@ class Trainer:
         while True:
             if torch.cuda.is_available():
                 # Print memory usage at the start of each batch
-                self.logger.debug(f'[Iteration: {itr}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(f'[Iteration: {itr}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[Iteration: {itr}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[Iteration: {itr}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             try:
                 train_data, valid_data = next(data_generator)
@@ -154,10 +156,12 @@ class Trainer:
                 # Print memory usage at the start of each batch
                 self.logger.debug(f'[Batch {i}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
                 self.logger.debug(f'[Batch {i}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+            self.logger.debug(f'[Batch {i}] Batch size: {get_memory_size_MB(batch)} MB')
 
             self.train_samples += batch.num_graphs
 
             batch = batch.to(self.device)
+
             self.model.zero_grad()
 
             batch_out = self.model(batch)
@@ -190,8 +194,10 @@ class Trainer:
 
             if torch.cuda.is_available():
                 # Print memory usage at the start of each batch
-                self.logger.debug(f'[After Batch {i}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(f'[After Batch {i}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[After Batch {i}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[After Batch {i}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
                 # After processing a batch, print the peak memory usage
                 self.logger.debug(
                     f'[After Batch {i}] Peak memory allocated: {torch.cuda.max_memory_allocated() / (1024 * 1024)} MB')
@@ -361,3 +367,14 @@ def get_grad_norm(model, norm_type=2):
     for p in model.parameters():
         norm += p.grad.data.norm(norm_type).item() ** norm_type
     return norm ** (1. / norm_type)
+
+
+def get_memory_size_MB(data: torch.tensor):
+    total_memory = 0
+    for attr, value in data:
+        if torch.is_tensor(value):
+            # itemsize gives memory size per element
+            # numel gives number of elements
+            total_memory += value.numel() * value.element_size()
+
+    return total_memory / (1024 * 1024)
