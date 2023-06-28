@@ -139,6 +139,11 @@ class Trainer:
 
         # Loop over training batches
         for i, batch in enumerate(data_loader):
+            if torch.cuda.is_available():
+                # Print memory usage at the start of each batch
+                self.logger.debug('Memory allocated:', torch.cuda.memory_allocated() / (1024 * 1024), 'MB')
+                self.logger.debug('Memory reserved:', torch.cuda.memory_reserved() / (1024 * 1024), 'MB')
+
             self.train_samples += batch.num_graphs
 
             batch = batch.to(self.device)
@@ -240,8 +245,6 @@ class Trainer:
             # Count the difference between truth p and predicted p
             if cfg['momentum_predict']:
                 p_err = (p_pred - p_truth) / p_truth
-                finite_mask = torch.isfinite(p_err)
-                diff_list.append(p_err[finite_mask])
 
                 # Count the number of NaN values
                 nan_count = torch.isnan(p_err).sum()
@@ -250,7 +253,17 @@ class Trainer:
                 # Count the number of Inf values
                 inf_count = torch.isinf(p_err).sum()
                 self.logger.debug(f"Number of Inf values: {inf_count.item()}")
+
+                finite_mask = torch.isfinite(p_err)
+
+                diff_list.append(p_err[finite_mask])
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
+
+            del batch, batch_out, batch_loss
+            del y_pred, p_out, p_pred, p_truth
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
 
         # Summarize the validation epoch
         n_batches = len(data_loader)
