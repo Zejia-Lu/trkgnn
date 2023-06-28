@@ -83,7 +83,12 @@ class GNN(nn.Module):
             x = self.node_network(node_inputs)
 
             # Residual connection
-            x = x + x0
+            # x = x + x0
+            x += x0
+
+            del edge_inputs, node_inputs, aggr_messages
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             if verbose:
                 print_gpu_info(prefix="graph iteration {}".format(i))
