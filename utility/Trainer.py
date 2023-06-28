@@ -138,6 +138,13 @@ class Trainer:
                     torch.cuda.empty_cache()
                 gc.collect()
 
+                if torch.cuda.is_available():
+                    # Print memory usage at the start of each batch
+                    self.logger.debug(
+                        f'[Iteration: {itr}] Peak Memory allocated: {torch.cuda.max_memory_allocated() / (1024 * 1024)} MB')
+                    self.logger.debug(
+                        f'[Iteration: {itr}] Peak Memory reserved: {torch.cuda.max_memory_reserved() / (1024 * 1024)} MB')
+
                 itr += 1
             except StopIteration:
                 print("Finish")
@@ -217,6 +224,7 @@ class Trainer:
                     '  train batch %i loss %.4f l1 %.2f l2 %.4f grad %.3f idx %i',
                     i, batch_loss.item(), l1, l2, grad_norm, batch.i[0].item()
                 )
+                del l1, l2, grad_norm
 
             if torch.cuda.is_available():
                 # Print memory usage at the start of each batch
@@ -232,7 +240,6 @@ class Trainer:
 
             del batch, batch_out, batch_loss
             del y_pred, p_out, p_pred, p_truth
-            del l1, l2, grad_norm
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             gc.collect()
@@ -343,6 +350,8 @@ class Trainer:
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
         self.logger.debug(' -- momentum mean %.3f std %.3f ' % (summary['valid_dp_mean'], summary['valid_dp_std']))
         self.logger.info('  Validation loss: %.3f acc: %.3f' % (summary['valid_loss'], summary['valid_acc']))
+
+
         return summary
 
     def add_summary(self, summaries):
