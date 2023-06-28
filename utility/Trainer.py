@@ -188,6 +188,16 @@ class Trainer:
                     i, batch_loss.item(), l1, l2, grad_norm, batch.i[0].item()
                 )
 
+            if torch.cuda.is_available():
+                # Print memory usage at the start of each batch
+                self.logger.debug(f'[After Batch {i}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(f'[After Batch {i}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+                # After processing a batch, print the peak memory usage
+                self.logger.debug(
+                    f'[After Batch {i}] Peak memory allocated: {torch.cuda.max_memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(
+                    f'[After Batch {i}] Peak memory reserved: {torch.cuda.max_memory_reserved() / (1024 * 1024)} MB')
+
             del batch, batch_out, batch_loss
             del y_pred, p_out, p_pred, p_truth
             del l1, l2, grad_norm
