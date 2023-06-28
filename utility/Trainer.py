@@ -141,8 +141,8 @@ class Trainer:
         for i, batch in enumerate(data_loader):
             if torch.cuda.is_available():
                 # Print memory usage at the start of each batch
-                self.logger.debug('Memory allocated:', torch.cuda.memory_allocated() / (1024 * 1024), 'MB')
-                self.logger.debug('Memory reserved:', torch.cuda.memory_reserved() / (1024 * 1024), 'MB')
+                self.logger.debug(f'Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(f'Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             self.train_samples += batch.num_graphs
 
