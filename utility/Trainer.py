@@ -106,6 +106,11 @@ class Trainer:
         )
         itr = 0
         while True:
+            if torch.cuda.is_available():
+                # Print memory usage at the start of each batch
+                self.logger.debug(f'[Iteration: {itr}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(f'[Iteration: {itr}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+
             try:
                 train_data, valid_data = next(data_generator)
                 try:
@@ -122,6 +127,12 @@ class Trainer:
                 df_sum = pd.concat([pd.DataFrame(s, index=[0]) for s in [train_sum, valid_sum]], axis=1)
                 self.add_summary(df_sum)
                 self.save_summary()
+
+                del train_sum, valid_sum, df_sum
+                del train_data, valid_data
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                gc.collect()
 
                 itr += 1
             except StopIteration:
@@ -141,8 +152,8 @@ class Trainer:
         for i, batch in enumerate(data_loader):
             if torch.cuda.is_available():
                 # Print memory usage at the start of each batch
-                self.logger.debug(f'Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(f'Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
+                self.logger.debug(f'[Batch {i}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
+                self.logger.debug(f'[Batch {i}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             self.train_samples += batch.num_graphs
 
