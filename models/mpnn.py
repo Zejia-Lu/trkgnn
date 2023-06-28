@@ -7,6 +7,7 @@ DeepMind's InteractionNetwork with Residual connections.
 import torch
 import torch.nn as nn
 from torch_scatter import scatter_add
+from torch.utils.checkpoint import checkpoint
 
 # Locals
 from .utils import make_mlp
@@ -69,14 +70,16 @@ class GNN(nn.Module):
 
             # Compute new edge features
             edge_inputs = torch.cat([x[send_idx], x[recv_idx]], dim=1)
-            e = self.edge_network(edge_inputs)
+            # e = self.edge_network(edge_inputs)
+            e = checkpoint(self.edge_network, edge_inputs)
 
             # Sum edge features coming into each node
             aggr_messages = scatter_add(e, recv_idx, dim=0, dim_size=x.shape[0])
 
             # Compute new node features
             node_inputs = torch.cat([x, aggr_messages], dim=1)
-            x = self.node_network(node_inputs)
+            # x = self.node_network(node_inputs)
+            x = checkpoint(self.node_network, node_inputs)
 
             # Residual connection
             x = x + x0
