@@ -89,6 +89,8 @@ data:
   n_workers: 0
   # initial incident energy (normalization constant)
   E0: 2900
+  # move large graph to only validation stage
+  min_graph_size: 1 # MB
   
   # This is mainly for application stage (automatically true)
   #   -- it's more or less determined in the training stage and graph building stage

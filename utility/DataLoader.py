@@ -21,6 +21,7 @@ from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
 from utility.EverythingNeeded import get_memory_size_MB
 
+
 @timing_decorator
 def get_data_loaders(
         input_dir, chunk_size, batch_size,
@@ -64,10 +65,13 @@ def get_data_loaders(
             )
             yield data_loader
         else:
-            large_graphs= []
+            large_graphs = []
 
             # Move elements from chunk_data to large_graphs based on large size
-            indices_to_move = [i for i, element in enumerate(chunk_data) if get_memory_size_MB(element) > 1.0]
+            indices_to_move = [
+                i for i, element in enumerate(chunk_data)
+                if get_memory_size_MB(element) > cfg['data']['min_graph_size']
+            ]
             if len(indices_to_move) > 0:
                 print(f"{len(indices_to_move)} large graphs Detected")
             for i in sorted(indices_to_move, reverse=True):
@@ -140,10 +144,10 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_z'].to_numpy().reshape(-1, 1)
             ], *([
-                eve[f'{col}_Bx'].to_numpy().reshape(-1, 1),
-                eve[f'{col}_By'].to_numpy().reshape(-1, 1),
-                eve[f'{col}_Bz'].to_numpy().reshape(-1, 1),
-            ] if cfg['data']['graph_with_BField'] else [])])
+                     eve[f'{col}_Bx'].to_numpy().reshape(-1, 1),
+                     eve[f'{col}_By'].to_numpy().reshape(-1, 1),
+                     eve[f'{col}_Bz'].to_numpy().reshape(-1, 1),
+                 ] if cfg['data']['graph_with_BField'] else [])])
             edge_index = np.hstack([
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_end'].to_numpy().reshape(-1, 1),
