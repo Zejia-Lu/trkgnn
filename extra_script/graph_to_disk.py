@@ -12,7 +12,7 @@ def load_ntuples(
     def convert_to_graph(ch):
         g_data = []
         for index, eve in enumerate(ch):
-            bfield=None
+            bfield=[]
             if graph_with_bfield:
                 bfield = [
                     eve[f'{col}_Bx'].to_numpy().reshape(-1, 1) * scale_b,
