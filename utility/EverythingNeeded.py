@@ -13,6 +13,12 @@ from torch.nn.parallel import DistributedDataParallel
 import models
 from utility.Control import cfg
 
+logger = logging.getLogger('torch._dynamo.symbolic_convert')
+logger.disabled = True
+logger = logging.getLogger('torch._inductor.compile_fx')
+logger.disabled = True
+logger = logging.getLogger('torch._dynamo.output_graph')
+logger.disabled = True
 
 def build_model(rank, distributed=False):
     if 'model' in cfg:
@@ -23,8 +29,9 @@ def build_model(rank, distributed=False):
         print('Parameters: %i' % sum(p.numel() for p in model.parameters()))
 
         if distributed:
-            return DistributedDataParallel(model, device_ids=[rank], static_graph=False)
+            return torch.compile(DistributedDataParallel(model, device_ids=[rank], static_graph=False),mode="reduce-overhead")
         else:
+            # return torch.compile(model, mode="reduce-overhead")
             return model
     else:
         print("model is missing in config.")
