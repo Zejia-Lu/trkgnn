@@ -183,7 +183,7 @@ def visual_summary_log(df, t):
 
     y_max, y_min = df.max()[['train_loss', 'valid_loss']].max(), df.min()[['train_loss', 'valid_loss']].min()
 
-    df_new = df[['epoch', 'train_loss', 'valid_loss', 'valid_dp_mean', 'valid_dp_std']]. \
+    df_new = df[['epoch', 'train_loss', 'valid_loss', 'valid_dp_mean', 'valid_dp_std', 'valid_acc']]. \
         groupby('epoch').transform("mean").drop_duplicates(keep='last', subset=['train_loss'])
 
     mu_max = df.abs().max()['valid_dp_mean']
@@ -222,8 +222,8 @@ def visual_summary_log(df, t):
         ))
     fig.add_trace(
         go.Scatter(
-            x=df.index,
-            y=-np.log10(1 - df['valid_acc']),
+            x=df_new.index,
+            y=-np.log10(1 - df_new['valid_acc']),
             # y=df['valid_acc'],
             mode='lines', name="itr: accuracy",
             line=dict(dash='dot', color="#11ADF0"), yaxis='y2',

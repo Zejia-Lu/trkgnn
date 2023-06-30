@@ -107,6 +107,7 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str, save: boo
         while True:
             try:
                 apply_loader = next(data_generator)
+                logger.info(f"Processing {itr + 1}th iteration with {len(apply_loader)} batches.")
                 # final tracks
                 tracks = []
                 # Loop over batches
