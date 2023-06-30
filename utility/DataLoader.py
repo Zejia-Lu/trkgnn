@@ -144,9 +144,9 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_z'].to_numpy().reshape(-1, 1)
             ], *([
-                     eve[f'{col}_Bx'].to_numpy().reshape(-1, 1),
+                     # eve[f'{col}_Bx'].to_numpy().reshape(-1, 1),
                      eve[f'{col}_By'].to_numpy().reshape(-1, 1),
-                     eve[f'{col}_Bz'].to_numpy().reshape(-1, 1),
+                     # eve[f'{col}_Bz'].to_numpy().reshape(-1, 1),
                  ] if cfg['data']['graph_with_BField'] else [])])
             edge_index = np.hstack([
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
