@@ -80,7 +80,8 @@ def get_data_loaders(
 
             train_data, test_data = train_test_split(chunk_data, test_size=0.3, random_state=cfg['rndm'])
             train_dataset = GNNTrackData(train_data)
-            valid_dataset = GNNTrackData(test_data + large_graphs)
+            valid_dataset = GNNTrackData(test_data)
+            large_dataset = GNNTrackData(large_graphs)
 
             collate_fn = default_collate
             loader_args = dict(
@@ -90,10 +91,11 @@ def get_data_loaders(
                 pin_memory=True,
             )
 
-            train_sampler, valid_sampler = None, None
+            train_sampler, valid_sampler, large_sampler = None, None, None
             if distributed:
                 train_sampler = DistributedSampler(train_dataset, rank=rank, num_replicas=n_ranks)
                 valid_sampler = DistributedSampler(valid_dataset, rank=rank, num_replicas=n_ranks)
+                large_sampler = DistributedSampler(large_dataset, rank=rank, num_replicas=n_ranks)
             train_data_loader = DataLoader(
                 train_dataset,
                 sampler=train_sampler,
@@ -108,6 +110,17 @@ def get_data_loaders(
                 )
                 if valid_dataset is not None else None
             )
+            large_data_loader = (
+                DataLoader(
+                    large_dataset,
+                    sampler=large_sampler,
+                    batch_size=1,
+                    collate_fn=collate_fn,
+                    num_workers=n_workers,
+                    pin_memory=True,
+                )
+                if large_dataset is not None else None
+            )
 
             # print(f"Dataset size: {len(train_dataset)}")
             # print(f"Total number of GPUs: {n_ranks}")
@@ -121,7 +134,7 @@ def get_data_loaders(
             # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
             # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
 
-            yield train_data_loader, valid_data_loader
+            yield train_data_loader, valid_data_loader, large_data_loader
 
 
 @timing_decorator

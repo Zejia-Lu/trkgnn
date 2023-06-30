@@ -1,7 +1,7 @@
 import logging
 import os
 import gc
-import subprocess
+from itertools import chain
 
 import pandas as pd
 import torch
@@ -116,7 +116,7 @@ class Trainer:
                     f'[Iteration: {itr}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             try:
-                train_data, valid_data = next(data_generator)
+                train_data, valid_data, large_data = next(data_generator)
                 try:
                     train_data.sampler.set_epoch(epoch)
                 except AttributeError:
@@ -124,7 +124,7 @@ class Trainer:
                     pass
 
                 train_sum = self.train_iteration(train_data)
-                valid_sum = self.valid_iteration(valid_data)
+                valid_sum = self.valid_iteration(valid_data, large_data)
 
                 train_sum['itr'] = itr
                 train_sum['epoch'] = epoch
@@ -245,7 +245,7 @@ class Trainer:
 
     @timing_decorator
     @torch.no_grad()
-    def valid_iteration(self, data_loader):
+    def valid_iteration(self, data_loader, large_loader=None):
         """"Evaluate the model"""
         self.model.eval()
 
@@ -257,8 +257,10 @@ class Trainer:
         sum_tp, sum_fp, sum_fn, sum_tn = 0, 0, 0, 0
         diff_list = []
 
+        if large_loader is not None:
+            self.logger.debug('Running validation on large loader with size %i', len(large_loader))
         # Loop over batches
-        for i, batch in enumerate(data_loader):
+        for i, batch in enumerate(data_loader if large_loader is None else chain(data_loader, large_loader)):
             self.valid_samples += batch.num_graphs
 
             batch = batch.to(self.device)
@@ -337,7 +339,6 @@ class Trainer:
         self.logger.debug(' -- momentum mean %.3f std %.3f ' % (summary['valid_dp_mean'], summary['valid_dp_std']))
         self.logger.info('  Validation loss: %.3f acc: %.3f' % (summary['valid_loss'], summary['valid_acc']))
 
-
         return summary
 
     def add_summary(self, summaries):
@@ -388,4 +389,3 @@ def get_grad_norm(model, norm_type=2):
     for p in model.parameters():
         norm += p.grad.data.norm(norm_type).item() ** norm_type
     return norm ** (1. / norm_type)
-
