@@ -261,7 +261,7 @@ class Trainer:
             self.logger.debug('Running validation on large loader with size %i', len(large_loader))
         # Loop over batches
         for i, batch in enumerate(data_loader if large_loader is None else chain(data_loader, large_loader)):
-            self.logger.debug(f'[Batch {i}] Batch size: {get_memory_size_MB(batch)} MB')
+            self.logger.debug(f'[Batch {i}] Batch size: {get_memory_size_MB(batch)} MB, with length {len(batch)}')
 
             self.valid_samples += batch.num_graphs
 
