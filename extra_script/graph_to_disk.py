@@ -200,13 +200,13 @@ if __name__ == '__main__':
                 print(f"[{col}]:  Saving {n_graph}th graph", flush=True)
                 torch.save(data_list, os.path.join(args.output, col, f'graph_list.{n_graph}.{args.tag}.pt'))
 
-                df_col.append(graph_summary(data_list))
+                # df_col.append(graph_summary(data_list))
                 n_graph += 1
             except StopIteration:
                 break
 
-        df = pd.concat(df_col, ignore_index=True)
-        os.makedirs(os.path.join(args.output, 'stats'), exist_ok=True)
-        df.to_csv(os.path.join(args.output, 'stats', f'{col}.{args.tag}.csv'), index=False)
+        # df = pd.concat(df_col, ignore_index=True)
+        # os.makedirs(os.path.join(args.output, 'stats'), exist_ok=True)
+        # df.to_csv(os.path.join(args.output, 'stats', f'{col}.{args.tag}.csv'), index=False)
 
 
