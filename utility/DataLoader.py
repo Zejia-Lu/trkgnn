@@ -70,7 +70,7 @@ def get_data_loaders(
             # Move elements from chunk_data to large_graphs based on large size
             indices_to_move = [
                 i for i, element in enumerate(chunk_data)
-                if get_memory_size_MB(element) > cfg['data']['min_graph_size']
+                if cfg['data']['min_graph_size'] < get_memory_size_MB(element) < 80
             ]
             if len(indices_to_move) > 0:
                 print(f"{len(indices_to_move)} large graphs Detected")
