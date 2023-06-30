@@ -1,18 +1,26 @@
 # External imports
+from collections import defaultdict
+
 import numpy as np
+import pandas as pd
 import uproot as up
 import torch
 import torch_geometric
 import os
 
+from typing import Generator, List
+
+import plotly.graph_objects as go
+import plotly.express as px
+
 
 def load_ntuples(
         f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1,
-        graph_with_bfield=True, only_bfield_y=False):
-    def convert_to_graph(ch):
+        graph_with_bfield=True, only_bfield_y=False) -> Generator[List[torch_geometric.data.Data], None, None]:
+    def convert_to_graph(ch) -> list[torch_geometric.data.Data]:
         g_data = []
         for index, eve in enumerate(ch):
-            bfield=[]
+            bfield = []
             if graph_with_bfield:
                 bfield = [
                     eve[f'{col}_Bx'].to_numpy().reshape(-1, 1) * scale_b,
@@ -26,7 +34,7 @@ def load_ntuples(
                 eve[f'{col}_x'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_y'].to_numpy().reshape(-1, 1),
                 eve[f'{col}_z'].to_numpy().reshape(-1, 1)
-            ],*bfield])
+            ], *bfield])
 
             edge_index = np.hstack([
                 eve[f'{col}_start'].to_numpy().reshape(-1, 1),
@@ -65,6 +73,80 @@ def load_ntuples(
         yield data
 
 
+def graph_summary(graphs: list[torch_geometric.data.Data]) -> pd.DataFrame:
+    def categorize_z(graphs):
+        results = defaultdict(list)
+
+        # Define your layers (converted to millimeters and then back to original units)
+        tag_layers = torch.tensor([-300, -200, -100, 0, 100, 200, 300]) - 307.78
+        rec_layers = torch.tensor([-86.2500, -71.2500, -55.2500, -40.2500, -4.2500, 86.2500]) + 94.03
+
+        # Concatenate the layers
+        layers = torch.cat([tag_layers, rec_layers]).view(1, -1)  # Reshape to (1, N)
+
+        # The error margin (converted to original units)
+        margin = 5  # Convert to original units
+
+        # Iterate over the graphs
+        for data in graphs:
+            z_values = data.x[:, 2].view(-1, 1)  # Get the z-values and reshape to (M, 1)
+
+            # Subtract the z_values from layers, take the absolute value, and compare with margin
+            # This gives a tensor of shape (M, N) with True where the z-value is close to a layer
+            categories = (z_values - layers).abs() <= margin
+
+            # Assign the categories
+            _, z_categories = categories.max(dim=1)  # This gives the index of the True value in each row
+
+            # Get the unique categories and their counts
+            unique_categories, counts = torch.unique(z_categories, return_counts=True)
+
+            # Count edges connected to each layer
+            for _, layer in enumerate(range(len(layers[0]))):
+                # Nodes in the current layer
+                nodes_in_layer = torch.where(z_categories == layer)[0]
+
+                nodes_in_layer_np = nodes_in_layer.cpu().numpy()
+                edge_index_0_np = data.edge_index[0].cpu().numpy()
+                edge_index_1_np = data.edge_index[1].cpu().numpy()
+                edges_in_layer_mask = \
+                    np.isin(edge_index_0_np, nodes_in_layer_np) | np.isin(edge_index_1_np, nodes_in_layer_np)
+
+                # Edges in the current layer
+                edges_in_layer = edges_in_layer_mask.sum()
+
+                # True edges in the current layer
+                true_edges_in_layer = (torch.tensor(edges_in_layer_mask, dtype=torch.int) & (data.y == 1)).sum()
+
+                # Add counts to results
+                if max(unique_categories) < 7:
+                    if layer >= 7: break
+                else:
+                    if layer < 7: continue
+
+                idx = layer if max(unique_categories) < 7 else (layer - 7)
+                layer_item = f'tag_{idx}' if max(unique_categories) < 7 else f'rec_{idx}'
+
+                if layer in unique_categories:
+                    idx = torch.where(unique_categories == layer)[0]
+
+                results[f'Layer_{layer_item}_num_node'].append(counts[idx].item())
+                results[f'Layer_{layer_item}_num_edge'].append(edges_in_layer.item())
+                results[f'Layer_{layer_item}_num_truth_edge'].append(true_edges_in_layer.item())
+
+        return results
+
+    re_df = pd.DataFrame({
+        'num_nodes': [data.num_nodes for data in graphs],
+        'num_edges': [data.num_edges for data in graphs],
+        'num_true_edges': [data.y.sum().item() for data in graphs],
+        **categorize_z(graphs),
+    })
+
+
+    return re_df
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -79,7 +161,8 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--bfield', action='store_true', default=False, help="whether to use bfield")
     parser.add_argument('-s', '--scale_b', type=float, default=100,
                         help="the scale factor for magnetic field (general ~ 1.5T, so default is 100)")
-    parser.add_argument('-y', '--only_bfield_y', action='store_true', default=False, help="whether to use only bfield_y")
+    parser.add_argument('-y', '--only_bfield_y', action='store_true', default=False,
+                        help="whether to use only bfield_y")
 
     args = parser.parse_args()
 
@@ -109,12 +192,21 @@ if __name__ == '__main__':
             only_bfield_y=args.only_bfield_y
         )
 
+        df_col = []
         n_graph = 0
         while True:
             try:
                 data_list = next(graph_data)
                 print(f"[{col}]:  Saving {n_graph}th graph", flush=True)
                 torch.save(data_list, os.path.join(args.output, col, f'graph_list.{n_graph}.{args.tag}.pt'))
+
+                df_col.append(graph_summary(data_list))
                 n_graph += 1
             except StopIteration:
                 break
+
+        df = pd.concat(df_col, ignore_index=True)
+        os.makedirs(os.path.join(args.output, 'stats'), exist_ok=True)
+        df.to_csv(os.path.join(args.output, 'stats', f'{col}.{args.tag}.csv'), index=False)
+
+
