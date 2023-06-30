@@ -38,7 +38,7 @@ def get_data_loaders(
         graph_branch = [f'{cfg["data"]["collection"]}_{i}' for i in original_branch]
         graph_branch += ['run_num', 'evt_num']
         chunk_generator = load_ntuples(
-            input_dir, cfg['data']['tree_name'], graph_branch, cfg["data"]["collection"], chunk_size
+            input_dir, cfg['data']['tree_name'], graph_branch, cfg["data"]["collection"], chunk_size, apply=apply
         )
 
     while True:
@@ -134,7 +134,7 @@ def get_entries(file_path, tree_name):
 
 
 @timing_decorator
-def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
+def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", apply: bool=False):
     @timing_decorator
     def convert_to_graph(ch):
         graph_data = []
@@ -177,7 +177,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB"):
             [{file_path: tree_name}],
             step_size=chunk_size,
             filter_name=branch_name,
-            cut=f'{cfg["data"]["collection"]}_weight>0',
+            cut=f'{cfg["data"]["collection"]}_weight>0' if not apply else None,
             report=True,
     ):
 
