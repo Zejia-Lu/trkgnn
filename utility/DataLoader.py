@@ -180,7 +180,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", ap
             cut=f'{cfg["data"]["collection"]}_weight>0' if not apply else None,
             report=True,
     ):
-        print(f"Loading chunk {report.start} - {report.stop} of {report.total}")
+        print(f"Loading chunk {report.start} - {report.stop}")
         if ('global_stop' in cfg['data']) and (report.start > cfg['data']['global_stop']):
             return None
         data = convert_to_graph(chunk)
