@@ -70,12 +70,14 @@ def get_data_loaders(
             # Move elements from chunk_data to large_graphs based on large size
             indices_to_move = [
                 i for i, element in enumerate(chunk_data)
-                if cfg['data']['min_graph_size'] < get_memory_size_MB(element) < 80
+                if cfg['data']['min_graph_size'] < get_memory_size_MB(element)
             ]
+
             if len(indices_to_move) > 0:
                 print(f"{len(indices_to_move)} large graphs Detected")
             for i in sorted(indices_to_move, reverse=True):
-                large_graphs.append(chunk_data[i])
+                if get_memory_size_MB(chunk_data[i]) < cfg['data']['max_graph_size']:
+                    large_graphs.append(chunk_data[i])
                 del chunk_data[i]
 
             train_data, test_data = train_test_split(chunk_data, test_size=0.3, random_state=cfg['rndm'])
@@ -147,7 +149,7 @@ def get_entries(file_path, tree_name):
 
 
 @timing_decorator
-def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", apply: bool=False):
+def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", apply: bool = False):
     @timing_decorator
     def convert_to_graph(ch):
         graph_data = []
@@ -190,7 +192,7 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", ap
             [{file_path: tree_name}],
             step_size=chunk_size,
             filter_name=branch_name,
-            cut=f'{cfg["data"]["collection"]}_weight>0', #if not apply else None,
+            cut=f'{cfg["data"]["collection"]}_weight>0',  # if not apply else None,
             report=True,
     ):
         if ('global_stop' in cfg['data']) and (report.start > cfg['data']['global_stop']):
