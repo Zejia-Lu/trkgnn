@@ -258,6 +258,11 @@ def cluster_tracks(graph: list[nx.Graph]) -> list[DTrack]:
     """
     clustered_tracks = []
     for gr in graph:
+        # Check if the graph has no nodes
+        if len(gr) == 0 or gr.size() == 0:
+            print(f"The graph (evt: {gr.graph['evt_num']}, run:  {gr.graph['run_num']}) has no nodes or edges.")
+            continue
+
         # apply DBSCAN
         tracks_event = []
         # Convert the graph's adjacency matrix to a dense format
