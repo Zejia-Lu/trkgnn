@@ -170,6 +170,9 @@ def plot_xyz_plotly_3d(node, edge, threshold=0.5, no_predict=True):
 
 
 def read_local_csv(local_csv_file):
+    if os.path.exists(local_csv_file) is False:
+        raise FileNotFoundError(f"File {local_csv_file} not found")
+
     """Read the local CSV file and return the dataframe and the timestamp"""
     timestamp = os.path.getmtime(local_csv_file)
     dt_object = datetime.datetime.fromtimestamp(timestamp)

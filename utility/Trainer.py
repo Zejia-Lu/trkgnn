@@ -14,7 +14,7 @@ from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info
 
 
 class Trainer:
-    def __init__(self, model, optimizer, lr_scheduler, loss_func, device, distributed=False):
+    def __init__(self, model, optimizer, lr_scheduler: torch.optim.lr_scheduler.LambdaLR, loss_func, device, distributed=False):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.model = model
@@ -63,7 +63,7 @@ class Trainer:
         # Determine initial epoch in case resuming training
         start_epoch = 0
         if self.summaries is not None:
-            start_epoch = self.summaries.epoch.max() + 1
+            start_epoch = self.summaries['epoch'].iloc[-1] + 1
 
         # Determine how many epochs we run in this call
         end_epoch = n_total_epochs

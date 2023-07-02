@@ -127,6 +127,8 @@ optimizer:
     - { start_epoch: 82, end_epoch: 100, factor: 0.01 }
 
 training:
+  # training epochs
+  n_epochs: 90
   # total training epochs
   n_total_epochs: 100
 ```

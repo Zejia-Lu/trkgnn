@@ -13,13 +13,19 @@ from torch.nn.parallel import DistributedDataParallel
 import models
 from utility.Control import cfg
 
-def build_model(rank, distributed=False):
+
+def build_model(rank, distributed=False, existed_model_path: str = None):
+    logger = logging.getLogger(__name__)
     if 'model' in cfg:
         model_configs = cfg['model']
         model = models.get_model(**model_configs).to(rank)
 
+        if existed_model_path is not None:
+            model.load_state_dict(torch.load(existed_model_path)['model'])
+            logger.info(f"Loaded model from {existed_model_path}")
+
         # print(model)
-        print('Parameters: %i' % sum(p.numel() for p in model.parameters()))
+        logger.debug('Parameters: %i' % sum(p.numel() for p in model.parameters()))
 
         if distributed:
             return DistributedDataParallel(model, device_ids=[rank], static_graph=False)
@@ -27,15 +33,18 @@ def build_model(rank, distributed=False):
             # return torch.compile(model, mode="reduce-overhead")
             return model
     else:
-        print("model is missing in config.")
+        logger.error("model is missing in config.")
         return None
 
 
 def build_optimizer(parameters, n_rank, name='Adam', learning_rate=0.001,
                     lr_warmup_epochs=1, lr_decay_schedule=None, lr_scaling='sqrt',
+                    existed_optimizer_path=None,
+                    last_epoch=-1,
                     **optimizer_args):
     """Construct the training optimizer and scale learning rate.
     Should be called by build_model rather than called directly."""
+    logger = logging.getLogger(__name__)
 
     # Compute the scaled learning rate and corresponding initial warmup factor
     if lr_decay_schedule is None:
@@ -69,7 +78,11 @@ def build_optimizer(parameters, n_rank, name='Adam', learning_rate=0.001,
         _lr_schedule, warm_up_factor=warmup_factor,
         warmup_epochs=lr_warmup_epochs, decays=lr_decay_schedule
     )
-    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_schedule)
+
+    if existed_optimizer_path is not None:
+        optimizer.load_state_dict(torch.load(existed_optimizer_path)['optimizer'])
+        logger.info(f"Loaded optimizer from {existed_optimizer_path}")
+    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_schedule, last_epoch=last_epoch)
     return optimizer, lr_scheduler
 
 
@@ -79,7 +92,7 @@ def build_loss(name):
 
 
 def config_logging(verbose, output_dir, append=False, rank=0, prefix='out'):
-    log_format = '%(asctime)s %(levelname)s %(message)s'
+    log_format = '%(asctime)s - [%(name)s: %(levelname)s] %(message)s'
     log_level = logging.DEBUG if verbose else logging.INFO
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(log_level)

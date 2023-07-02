@@ -1,5 +1,7 @@
+import logging
 import os
 
+import pandas as pd
 import torch
 
 from utility.Control import load_config, cfg
@@ -14,22 +16,24 @@ from visualization.scripts.plotting import read_local_csv, visual_summary_log
 
 
 def setup(rank, world_size):
+    logger = logging.getLogger("GPU Setup")
+
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
 
     # check OS
     # Check if CUDA is available
     if torch.cuda.is_available():
-        print("CUDA is available.")
+        logger.info("CUDA is available.")
 
         # Check the number of available GPUs
         num_gpus = torch.cuda.device_count()
-        print(f"Number of available GPUs: {num_gpus}")
+        logger.info(f"Number of available GPUs: {num_gpus}")
 
         # Print details for each GPU
         for i in range(num_gpus):
             gpu_info = torch.cuda.get_device_properties(i)
-            print(f"GPU {i}: {gpu_info.name}")
+            logger.info(f"GPU {i}: {gpu_info.name}")
 
         # initialize the process group
         dist.init_process_group("nccl", rank=rank, world_size=world_size)
@@ -39,7 +43,7 @@ def setup(rank, world_size):
     #     print("mps is available.")
     #     device = torch.device("mps")
     else:
-        print("CUDA is not available.")
+        logger.info("CUDA is not available.")
         device = torch.device("cpu")
 
     cfg['device'] = device
@@ -48,19 +52,53 @@ def setup(rank, world_size):
 def cleanup():
     dist.destroy_process_group()
 
+@timing_decorator
+def load_model_summary():
+    logger = logging.getLogger("Main Process")
+
+    model_dir = os.path.join(cfg['output_dir'], 'model.checkpoints')
+    if not os.path.exists(model_dir):
+        logger.info(f"==> No existing model output directory found, start from scratch.")
+        return None, None
+    model_files = [f for f in os.listdir(model_dir) if f.endswith('.pth.tar')]
+    model_exists = -1
+    if model_files:
+        epochs = sorted([int(file.split('.')[0].split('_')[-1]) for file in model_files], reverse=True)
+        if epochs:
+            model_exists = epochs[0]
+
+    if model_exists >= 0:
+        summary_path = os.path.join(cfg['output_dir'], 'summaries_0.csv')
+        summary_log = pd.read_csv(summary_path) if os.path.exists(summary_path) else None
+        if summary_log is not None:
+            last_epoch = summary_log['epoch'].iloc[-1]
+            model_exists = min(last_epoch, model_exists)
+            summary_log = summary_log[summary_log['epoch'] <= model_exists]
+            existed_model_path = os.path.join(model_dir, f'model_checkpoint_{model_exists:03d}.pth.tar')
+            logger.info(f"==> Found existing model at epoch {model_exists}, loading it.")
+            return existed_model_path, summary_log
+        else:
+            logger.info(f"==> No summary log found.")
+    logger.info(f"==> No existing model found, start from scratch.")
+    return None, None
 
 @timing_decorator
 def process(rank, world_size, config_path, verbose):
     load_config(config_path)
     config_logging(verbose, output_dir=cfg['output_dir'], rank=rank)
 
-    print(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
+    logger = logging.getLogger("Main Process")
+
+    logger.info(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
+
+    # check if the model and summary log exists, if so, load it
+    existed_model_path, summary_log = load_model_summary()
 
     checkpoint_path = os.path.join(cfg['output_dir'], 'model.checkpoint')
     # Build model
     if torch.cuda.is_available():
-        model = build_model(rank, distributed=True)
+        model = build_model(rank, distributed=True, existed_model_path=existed_model_path)
         if rank == 0:
             # All processes should see same parameters as they all start from same
             # random parameters and gradients are synchronized in backward passes.
@@ -82,15 +120,22 @@ def process(rank, world_size, config_path, verbose):
             return device
 
         if d := is_model_on_device(model, rank):
-            print(f"Model is on the correct device: {d}")
+            logger.debug(f"Model is on the correct device: {d}")
         else:
-            print(f"Model is not on the correct device. Expected device: {d}")
+            logger.debug(f"Model is not on the correct device. Expected device: {d}")
 
     else:
-        model = build_model(cfg['device'], distributed=False)
+        model = build_model(cfg['device'], distributed=False, existed_model_path=existed_model_path)
 
     # Back to normal training
-    optimizer, lr_scheduler = build_optimizer(model.parameters(), n_rank=world_size, **cfg['optimizer'])
+    optimizer, lr_scheduler = build_optimizer(
+        model.parameters(),
+        n_rank=world_size,
+        lr_warmup_epochs=1,
+        existed_optimizer_path=existed_model_path,
+        last_epoch=summary_log['epoch'].iloc[-1] if summary_log is not None else -1,
+        **cfg['optimizer']
+    )
     loss = build_loss(cfg['loss_func'])
 
     trainer = Trainer(
@@ -102,8 +147,10 @@ def process(rank, world_size, config_path, verbose):
         distributed=torch.cuda.is_available(),
     )
 
+    trainer.summaries = summary_log
+
     trainer.process(
-        n_epochs=cfg['training']['n_total_epochs'],
+        n_epochs=cfg['training']['n_epochs'],
         n_total_epochs=cfg['training']['n_total_epochs'],
         world_size=world_size
     )
@@ -113,9 +160,9 @@ def process(rank, world_size, config_path, verbose):
             os.remove(checkpoint_path)
 
         cleanup()
-        print(f"==> Finish running basic DDP on rank {rank}.")
+        logger.info(f"==> Finish running basic DDP on rank {rank}.")
     else:
-        print(f"==> Finish running training on {cfg['device']}.")
+        logger.info(f"==> Finish running training on {cfg['device']}.")
 
     print_accumulated_times()
     # visualization the training summary
@@ -126,8 +173,6 @@ def process(rank, world_size, config_path, verbose):
     fig = visual_summary_log(df, t)
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.png'))
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.pdf'))
-
-
 
 
 def parallel_process(config_path, world_size, verbose):

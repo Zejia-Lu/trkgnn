@@ -29,6 +29,8 @@ def load_config(file_str: str) -> None:
         set_default(cfg['data'], 'min_graph_size', 1)
         set_default(cfg['data'], 'max_graph_size', 80)
 
+        set_default(cfg['training'], 'n_epochs', cfg['training']['n_total_epochs'])
+
         cfg['plot_path'] = os.path.join(cfg['output_dir'], 'plots')
 
 
