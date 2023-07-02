@@ -123,7 +123,7 @@ class Trainer:
                     self.logger.info('Sampler has no set_epoch method')
                     pass
 
-                train_sum = self.train_iteration(train_data)
+                train_sum = self.train_iteration(train_data, large_data)
                 valid_sum = self.valid_iteration(valid_data, large_data)
 
                 train_sum['itr'] = itr
@@ -151,7 +151,7 @@ class Trainer:
                 break
 
     @timing_decorator
-    def train_iteration(self, data_loader):
+    def train_iteration(self, data_loader, large_loader=None):
         """Train for one epoch"""
         self.model.train()
 
@@ -160,7 +160,7 @@ class Trainer:
         sum_loss = 0
 
         # Loop over training batches
-        for i, batch in enumerate(data_loader):
+        for i, batch in enumerate(data_loader if large_loader is None else chain(data_loader, large_loader)):
             if torch.cuda.is_available():
                 # Print memory usage at the start of each batch
                 self.logger.debug(f'[Batch {i}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')

@@ -1,7 +1,3 @@
-//
-// Created by Yulei on 2023/6/26.
-//
-
 #include "TFile.h"
 #include "TH1F.h"
 #include "TTree.h"
@@ -10,7 +6,8 @@
 
 using namespace std;
 
-void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_rec_filepath, const std::string& ana_filepath) {
+void merge_to_DAna(const std::string &gnn_tag_filepath, const std::string &gnn_rec_filepath,
+                   const std::string &ana_filepath) {
 
     // input files
 //    auto gnn_tag_file = new TFile("/Users/avencast/PycharmProjects/trkgnn/workspace/output/out_roots/out_0.root",
@@ -43,16 +40,16 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
         treeOut->Branch(prefix + "_end_y", &values[6]);
         treeOut->Branch(prefix + "_end_z", &values[7]);
         treeOut->Branch(prefix + "_no_hits", &values[8]);
+        treeOut->Branch(prefix + "_quality", &values[9]);
     };
 
-    std::vector<std::vector<Double_t>> gnn_tag(9, std::vector<Double_t>(0));
+    std::vector<std::vector<Double_t>> gnn_tag(10, std::vector<Double_t>(0));
     register_values("gnn_tag", gnn_tag);
-    std::vector<std::vector<Double_t>> gnn_rec(9, std::vector<Double_t>(0));
+    std::vector<std::vector<Double_t>> gnn_rec(10, std::vector<Double_t>(0));
     register_values("gnn_rec", gnn_rec);
     Int_t gnn_tag_no_tracks = 0, gnn_rec_no_tracks = 0;
     treeOut->Branch("gnn_tag_no_tracks", &gnn_tag_no_tracks);
     treeOut->Branch("gnn_rec_no_tracks", &gnn_rec_no_tracks);
-
 
     Int_t cur_evt, cur_run;
     Int_t tag_evt, tag_run;
@@ -64,7 +61,7 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
     tree_rec->SetBranchAddress("evt_num", &rec_evt);
     tree_rec->SetBranchAddress("run_num", &rec_run);
 
-    auto set_branch_address = [](TTree *t, Int_t &nhits, std::vector<Float_t> &values) {
+    auto set_branch_address = [](TTree *t, Int_t &nhits, Int_t &full_track, std::vector<Float_t> &values) {
         t->SetBranchAddress("no_hits", &nhits);
         t->SetBranchAddress("p_i", &values[0]);
         t->SetBranchAddress("p_f", &values[1]);
@@ -74,15 +71,16 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
         t->SetBranchAddress("end_x", &values[5]);
         t->SetBranchAddress("end_y", &values[6]);
         t->SetBranchAddress("end_z", &values[7]);
+        t->SetBranchAddress("full_track", &full_track);
     };
 
-    Int_t tag_nhits;
+    Int_t tag_nhits, tag_full_track;
     std::vector<Float_t> tag_values(8, 0);
-    set_branch_address(tree_tag, tag_nhits, tag_values);
+    set_branch_address(tree_tag, tag_nhits, tag_full_track, tag_values);
 
-    Int_t rec_nhits;
+    Int_t rec_nhits, rec_full_track;
     std::vector<Float_t> rec_values(8, 0);
-    set_branch_address(tree_rec, rec_nhits, rec_values);
+    set_branch_address(tree_rec, rec_nhits, rec_full_track, rec_values);
 
     Long64_t nentries = treeA->GetEntries();
     Long64_t nentries_tag = tree_tag->GetEntries();
@@ -96,7 +94,7 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
         }
 
         auto fill_values = [](
-                std::vector<std::vector<Double_t>> &values, Int_t nhits, std::vector<Float_t> track_values
+                std::vector<std::vector<Double_t>> &values, Int_t nhits, Int_t full_track, std::vector<Float_t> track_values
         ) {
             values[0].push_back(track_values[0]);
             values[1].push_back(track_values[1]);
@@ -107,6 +105,9 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
             values[6].push_back(track_values[6]);
             values[7].push_back(track_values[7]);
             values[8].push_back(static_cast<Double_t>(nhits));
+
+            // quality
+            values[9].push_back(static_cast<Double_t>(full_track));
         };
 
 
@@ -116,7 +117,7 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
 
         tree_tag->GetEntry(tag_i);
         while (tag_evt == cur_evt && tag_run == cur_run) {
-            fill_values(gnn_tag, tag_nhits, tag_values);
+            fill_values(gnn_tag, tag_nhits, tag_full_track,tag_values);
             gnn_tag_no_tracks++;
             tag_i++;
             if (tag_i >= nentries_tag) break;
@@ -125,7 +126,7 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
 
         tree_rec->GetEntry(rec_i);
         while (rec_evt == cur_evt && rec_run == cur_run) {
-            fill_values(gnn_rec, rec_nhits, rec_values);
+            fill_values(gnn_rec, rec_nhits, rec_full_track,rec_values);
             gnn_rec_no_tracks++;
             rec_i++;
             if (rec_i >= nentries_rec) break;
@@ -137,8 +138,8 @@ void merge_to_DAna(const std::string& gnn_tag_filepath, const std::string& gnn_r
         treeOut->Fill();
 
         // clean
-        for (auto &v : gnn_tag) v.clear();
-        for (auto &v : gnn_rec) v.clear();
+        for (auto &v: gnn_tag) v.clear();
+        for (auto &v: gnn_rec) v.clear();
     }
 
     cout << "Writing to file" << endl;
