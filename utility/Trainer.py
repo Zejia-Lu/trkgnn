@@ -40,7 +40,8 @@ class Trainer:
         # Initial weights for each task
         self.weights = torch.tensor([1.0, 1.0], device=self.device)
         # Alpha for Grad-Norm
-        self.alpha = 0.1
+        self.alpha = 0.25
+        self.min_factor = 1e-3
         # Initialize gradient norms for each task
         self.G_0 = None
 
@@ -78,8 +79,19 @@ class Trainer:
 
                     self.logger.debug(f'L_hat: {L_hat}, mean_L_hat: {mean_L_hat}')
 
-                    # Update the weights using the Grad-Norm strategy
-                    self.weights *= (1 + self.alpha * (L_hat / mean_L_hat - 1)).clamp(min=0)
+                    # Compute the weight update factors
+                    factors = (1 + self.alpha * (L_hat / mean_L_hat - 1))
+                    # Log if any factors are outside the clamp range
+                    if (factors < 0).any() or (factors > 10).any():
+                        self.logger.debug(f'Clamping factors: {factors}')
+                    # Apply the clamp to the factors
+                    factors = factors.clamp(min=0, max=10)
+                    # Update the weights
+                    self.weights *= factors
+                    if self.weights[0] < self.min_factor:
+                        self.weights[0] = self.min_factor
+                    if self.weights[1] < self.min_factor:
+                        self.weights[1] = self.min_factor
                     # Normalize the weights
                     self.weights /= self.weights.sum()
 
