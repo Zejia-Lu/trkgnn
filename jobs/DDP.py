@@ -178,6 +178,8 @@ def process(rank, world_size, config_path, verbose):
 def parallel_process(config_path, world_size, verbose):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
+    if verbose:
+        os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
 
     mp.spawn(
         process,
