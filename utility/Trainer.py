@@ -6,6 +6,7 @@ from itertools import chain
 import pandas as pd
 import torch
 from torch import nn
+from torch.autograd import Variable
 
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
@@ -14,13 +15,19 @@ from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info
 
 
 class Trainer:
-    def __init__(self, model, optimizer, lr_scheduler: torch.optim.lr_scheduler.LambdaLR, loss_func, device, distributed=False):
+    def __init__(
+            self, model, optimizer,
+            lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
+            loss_func,
+            device,
+            distributed=False):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.loss_func = loss_func
+        self.loss_func_p = nn.SmoothL1Loss()
         self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
@@ -29,33 +36,62 @@ class Trainer:
         self.current_epoch = 0
         self.train_samples = 0
         self.valid_samples = 0
-        # for combined loss
-        self.prev_y_loss = 0
-        self.prev_p_loss = 0
-        self.y_weight = 0.5
-        self.p_weight = 0.5
+        # Initial weights for each task
+        self.weights = torch.tensor([1.0, 1.0], device=self.device)
+        # Alpha for Grad-Norm
+        self.alpha = 0.1
+        # Initialize gradient norms for each task
+        self.G_0 = None
 
-    def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None):
+    def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None, train: bool = True):
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
         if cfg['momentum_predict']:
-            loss_fn_p = nn.SmoothL1Loss()
-            p_loss = loss_fn_p(p_pred, p_true)
+            # Compute the loss for the second task
+            p_loss = self.loss_func_p(p_pred, p_true)
+            # Compute the losses
+            losses = torch.stack([y_loss, p_loss])
+            # Compute the total loss as a weighted sum of the individual losses
+            total_loss = torch.dot(self.weights, losses)
+            if train:
+                # Zero the gradients
+                self.model.zero_grad()
+                # Compute gradients for y task
+                y_loss.backward(retain_graph=True)
+                # Compute the gradient norm for y task
+                G_y = torch.norm(torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None]))
+                # Zero the gradients
+                self.model.zero_grad()
+                # Compute gradients for p task
+                p_loss.backward()
+                # Compute the gradient norm for p task
+                G_p = torch.norm(torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None]))
+                # Compute gradient norms for each task and, if necessary, initial gradient norms
+                with torch.no_grad():
+                    G = torch.tensor([G_y, G_p], device=self.device)
+                    self.G_0 = G if self.G_0 is None else self.G_0
 
-            # calculate rates of decrease
-            y_rate = abs(self.prev_y_loss - y_loss) if self.prev_y_loss else torch.tensor(0.)
-            p_rate = abs(self.prev_p_loss - p_loss) if self.prev_p_loss else torch.tensor(0.)
+                    self.logger.debug(f'G_y: {G_y}, G_p: {G_p}, G_0: {self.G_0}')
 
-            # calculate new weights based on rates of decrease
-            # (add small constant in denominator to avoid division by zero)
-            self.y_weight = y_rate / (y_rate + p_rate + 1e-10)
-            self.p_weight = 1 - self.y_weight
+                    # Compute the relative losses
+                    L_hat = G / self.G_0
+                    # Compute the mean relative loss
+                    mean_L_hat = torch.mean(L_hat)
 
-            # update previous losses
-            self.prev_y_loss = y_loss
-            self.prev_p_loss = p_loss
+                    self.logger.debug(f'L_hat: {L_hat}, mean_L_hat: {mean_L_hat}')
 
-            return self.y_weight.item() * y_loss + self.p_weight.item() * p_loss
+                    # Update the weights using the Grad-Norm strategy
+                    self.weights *= (1 + self.alpha * (L_hat / mean_L_hat - 1)).clamp(min=0)
+                    # Normalize the weights
+                    self.weights /= self.weights.sum()
+
+                    self.logger.debug(f'factor: {1 + self.alpha * (L_hat / mean_L_hat - 1)}')
+                    self.logger.debug(f'weights: {self.weights}')
+
+            return total_loss
         else:
+            if train:
+                y_loss.backward()
+
             return y_loss
 
     @timing_decorator
@@ -196,7 +232,8 @@ class Trainer:
 
             batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
 
-            batch_loss.backward()
+            # move backward in self.loss()
+            # batch_loss.backward()
 
             self.optimizer.step()
             sum_loss += batch_loss.item()
@@ -277,7 +314,7 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w).item()
+            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w, train=False).item()
             sum_loss += batch_loss
 
             # Count number of correct predictions
@@ -389,5 +426,6 @@ def get_grad_norm(model, norm_type=2):
     """Get the norm of the model weight gradients"""
     norm = 0
     for p in model.parameters():
-        norm += p.grad.data.norm(norm_type).item() ** norm_type
+        if p.grad is not None:
+            norm += p.grad.data.norm(norm_type).item() ** norm_type
     return norm ** (1. / norm_type)

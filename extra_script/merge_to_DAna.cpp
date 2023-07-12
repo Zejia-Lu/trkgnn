@@ -54,10 +54,13 @@ void merge_to_DAna(const std::string &gnn_tag_filepath, const std::string &gnn_r
     Int_t cur_evt, cur_run;
     Int_t tag_evt, tag_run;
     Int_t rec_evt, rec_run;
+    std::cout<<"Setting dp_ana branch address"<<std::endl;
     treeA->SetBranchAddress("EventNumber", &cur_evt);
     treeA->SetBranchAddress("RunNumber", &cur_run);
+    std::cout<<"Setting tag branch address"<<std::endl;
     tree_tag->SetBranchAddress("evt_num", &tag_evt);
     tree_tag->SetBranchAddress("run_num", &tag_run);
+    std::cout<<"Setting rec branch address"<<std::endl;
     tree_rec->SetBranchAddress("evt_num", &rec_evt);
     tree_rec->SetBranchAddress("run_num", &rec_run);
 
