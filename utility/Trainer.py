@@ -66,7 +66,8 @@ class Trainer:
                 # Compute gradient norms for each task and, if necessary, initial gradient norms
                 with torch.no_grad():
                     G = torch.tensor([G_y, G_p], device=self.device)
-                    self.G_0 = G if self.G_0 is None else self.G_0
+                    if self.G_0 is None:
+                        self.G_0 = G.clone().detach()
 
                     self.logger.debug(f'G_y: {G_y}, G_p: {G_p}, G_0: {self.G_0}')
 
