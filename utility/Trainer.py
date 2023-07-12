@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 from torch import nn
 import torch.distributed as dist
+from torch.autograd import grad
 
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
@@ -54,30 +55,14 @@ class Trainer:
             total_loss = torch.dot(self.weights, losses)
             if train:
                 self.logger.debug(f'l1: {y_loss}, l2: {p_loss}, total: {total_loss}')
-                # Zero the gradients
-                self.model.zero_grad()
-                # Compute gradients for y task
-                if self.distributed:
-                    with self.model.no_sync():
-                        y_loss.backward(retain_graph=True)
-                else:
-                    y_loss.backward(retain_graph=True)
-                # y_loss.backward(retain_graph=True)
-                if self.distributed: dist.barrier()
-                # Compute the gradient norm for y task
-                G_y = torch.norm(torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None]))
-                # Zero the gradients
-                self.model.zero_grad()
-                # Compute gradients for p task
-                if self.distributed:
-                    with self.model.no_sync():
-                        p_loss.backward(retain_graph=True)
-                else:
-                    p_loss.backward(retain_graph=True)
-                # p_loss.backward(retain_graph=True)
-                if self.distributed: dist.barrier()
-                # Compute the gradient norm for p task
-                G_p = torch.norm(torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None]))
+                # Compute gradients for each task
+                grads_y = grad(y_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+                grads_p = grad(p_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+
+                # Compute gradient norms
+                G_y = torch.norm(torch.cat([g.view(-1) for g in grads_y if g is not None]))
+                G_p = torch.norm(torch.cat([g.view(-1) for g in grads_p if g is not None]))
+
                 # Compute gradient norms for each task and, if necessary, initial gradient norms
                 with torch.no_grad():
                     G = torch.tensor([G_y, G_p], device=self.device)
@@ -99,6 +84,12 @@ class Trainer:
 
                     self.logger.debug(f'factor: {1 + self.alpha * (L_hat / mean_L_hat - 1)}')
                     self.logger.debug(f'weights: {self.weights}')
+
+                # Apply GradNorm weights and accumulated gradients
+                for i, p in enumerate(self.model.parameters()):
+                    if p.grad is not None:
+                        p.grad = (self.weights[0] * grads_y[i] if grads_y[i] is not None else 0) + (
+                            self.weights[1] * grads_p[i] if grads_p[i] is not None else 0)
 
                 (y_loss * self.weights[0] + p_loss * self.weights[1]).backward()
 
@@ -212,11 +203,7 @@ class Trainer:
 
         # Loop over training batches
         for i, batch in enumerate(data_loader if large_loader is None else chain(data_loader, large_loader)):
-            if torch.cuda.is_available():
-                # Print memory usage at the start of each batch
-                self.logger.debug(f'[Batch {i}] Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(f'[Batch {i}] Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
-                print_gpu_info(self.logger)
+
             self.logger.debug(f'[Batch {i}] Batch size: {get_memory_size_MB(batch)} MB')
 
             self.train_samples += batch.num_graphs
@@ -225,14 +212,6 @@ class Trainer:
                 print_gpu_info(self.logger)
             self.model.zero_grad()
             batch_out = self.model(batch, verbose=True if get_memory_size_MB(batch) > 1 else False)
-
-            if torch.cuda.is_available():
-                print_gpu_info(self.logger)
-                # Print memory usage at the start of each batch
-                self.logger.debug(
-                    f'[Batch {i}] Model Output Memory allocated: {torch.cuda.memory_allocated() / (1024 * 1024)} MB')
-                self.logger.debug(
-                    f'[Batch {i}] Model Output Memory reserved: {torch.cuda.memory_reserved() / (1024 * 1024)} MB')
 
             if cfg['momentum_predict']:
                 y_pred, p_out = batch_out
