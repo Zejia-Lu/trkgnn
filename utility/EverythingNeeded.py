@@ -28,7 +28,7 @@ def build_model(rank, distributed=False, existed_model_path: str = None):
         logger.debug('Parameters: %i' % sum(p.numel() for p in model.parameters()))
 
         if distributed:
-            return DistributedDataParallel(model, device_ids=[rank], static_graph=True)
+            return DistributedDataParallel(model, device_ids=[rank], static_graph=False)
         else:
             # return torch.compile(model, mode="reduce-overhead")
             return model
