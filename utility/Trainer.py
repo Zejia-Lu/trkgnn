@@ -69,7 +69,7 @@ class Trainer:
                 # Zero the gradients
                 self.model.zero_grad()
                 # Compute gradients for p task
-                p_loss.backward()
+                p_loss.backward(retain_graph=True)
                 # Compute the gradient norm for p task
                 G_p = torch.norm(torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None]))
                 # Compute gradient norms for each task and, if necessary, initial gradient norms
@@ -93,6 +93,8 @@ class Trainer:
 
                     self.logger.debug(f'factor: {1 + self.alpha * (L_hat / mean_L_hat - 1)}')
                     self.logger.debug(f'weights: {self.weights}')
+
+                (y_loss * self.weights[0] + p_loss * self.weights[1]).backward()
 
             return total_loss
         else:
