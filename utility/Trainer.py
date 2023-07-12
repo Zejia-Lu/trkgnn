@@ -6,7 +6,7 @@ from itertools import chain
 import pandas as pd
 import torch
 from torch import nn
-from torch.autograd import Variable
+import torch.distributed as dist
 
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
@@ -64,12 +64,14 @@ class Trainer:
                 #     # Compute gradients for y task
                 #     y_loss.backward(retain_graph=True)
                 y_loss.backward(retain_graph=True)
+                if self.distributed: dist.barrier()
                 # Compute the gradient norm for y task
                 G_y = torch.norm(torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None]))
                 # Zero the gradients
                 self.model.zero_grad()
                 # Compute gradients for p task
                 p_loss.backward(retain_graph=True)
+                if self.distributed: dist.barrier()
                 # Compute the gradient norm for p task
                 G_p = torch.norm(torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None]))
                 # Compute gradient norms for each task and, if necessary, initial gradient norms
