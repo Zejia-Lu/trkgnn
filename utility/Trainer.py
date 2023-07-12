@@ -53,6 +53,7 @@ class Trainer:
             # Compute the total loss as a weighted sum of the individual losses
             total_loss = torch.dot(self.weights, losses)
             if train:
+                self.logger.debug(f'l1: {y_loss}, l2: {p_loss}, total: {total_loss}')
                 # Zero the gradients
                 self.model.zero_grad()
                 if self.distributed:
