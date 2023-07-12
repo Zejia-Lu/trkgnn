@@ -56,12 +56,11 @@ class Trainer:
                 self.logger.debug(f'l1: {y_loss}, l2: {p_loss}, total: {total_loss}')
                 # Zero the gradients
                 self.model.zero_grad()
+                # Compute gradients for y task
                 if self.distributed:
                     with self.model.no_sync():
-                        # Compute gradients for y task
                         y_loss.backward(retain_graph=True)
                 else:
-                    # Compute gradients for y task
                     y_loss.backward(retain_graph=True)
                 # y_loss.backward(retain_graph=True)
                 if self.distributed: dist.barrier()
@@ -70,7 +69,12 @@ class Trainer:
                 # Zero the gradients
                 self.model.zero_grad()
                 # Compute gradients for p task
-                p_loss.backward(retain_graph=True)
+                if self.distributed:
+                    with self.model.no_sync():
+                        p_loss.backward(retain_graph=True)
+                else:
+                    p_loss.backward(retain_graph=True)
+                # p_loss.backward(retain_graph=True)
                 if self.distributed: dist.barrier()
                 # Compute the gradient norm for p task
                 G_p = torch.norm(torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None]))
