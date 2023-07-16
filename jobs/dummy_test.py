@@ -60,7 +60,7 @@ def evaluate_speed(num_graphs, start_size, end_size, model, batch_size=16):
         end_time = time.time()
         times.append(end_time - start_time)
 
-    mean_speed = sum(times) / len(times)
+    mean_speed = sum(times) / len(data_list)
     print(f"Mean speed: {mean_speed} s [{len(data_list)} graphs]")
 
 
