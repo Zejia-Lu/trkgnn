@@ -4,6 +4,7 @@ from utility.Control import load_config
 from jobs.quick_test import quick_test
 from jobs.DDP import parallel_process
 from jobs.Apply import apply_to_ds
+from jobs.dummy_test import dummy_test
 from utility.FunctionTime import print_accumulated_times
 
 
@@ -19,7 +20,10 @@ def main(arg):
         load_config(arg.config)
         apply_to_ds(arg.input, arg.model, arg.output, arg.save)
         print_accumulated_times()
-    pass
+
+    if arg.command == 'dummy':
+        load_config(arg.config)
+        dummy_test()
 
 
 if __name__ == '__main__':
@@ -54,6 +58,10 @@ if __name__ == '__main__':
     apply.add_argument('-c', '--config', default='config.yaml', type=str, help="the config file for training")
     # add argument for saving graphs
     apply.add_argument('-s', '--save', action='store_true', help="save the graphs to the output directory")
+
+    # parser for dummy test
+    dummy = subparsers.add_parser('dummy', help='dummy test the evaluation speed')
+    dummy.add_argument('config', default='config.yaml', type=str, help="the config file")
 
     args = par.parse_args()
 
