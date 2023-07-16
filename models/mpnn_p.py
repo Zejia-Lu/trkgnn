@@ -7,7 +7,6 @@ DeepMind's InteractionNetwork with Residual connections.
 import torch
 import torch.nn as nn
 from torch_scatter import scatter_add
-from torch.utils.checkpoint import checkpoint
 
 # Locals
 from .utils import make_mlp

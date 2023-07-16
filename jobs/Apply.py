@@ -289,8 +289,7 @@ def cluster_tracks(graph: list[nx.Graph]) -> list[DTrack]:
             track = DTrack()
             track.from_graph(
                 gr.subgraph(subgraph.nodes), cfg['data']['E0'],
-                tracker_boundary=(cfg['data']['tracker_boundary']['z_min'], cfg['data']['tracker_boundary']['z_max'])
-                if 'tracker_boundary' in cfg['data'] else None,
+                tracker_boundary=(cfg['data']['tracking_boundary']['z_min'], cfg['data']['tracking_boundary']['z_max']),
             )
             clustered_tracks.append(track)
 
