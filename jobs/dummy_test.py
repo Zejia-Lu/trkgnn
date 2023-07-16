@@ -76,4 +76,6 @@ def dummy_test():
 
     evaluate_speed(5000, 60, 500, model, 2)
 
+    evaluate_speed(5000, 600, 1000, model, 1)
+
     pass
