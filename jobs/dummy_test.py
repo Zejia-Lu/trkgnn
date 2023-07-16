@@ -47,10 +47,10 @@ def create_dummy_graphs(num_graphs, start_size, end_size, num_node_features):
     return data_list
 
 
-def evaluate_speed(num_graphs, start_size, end_size, model):
+def evaluate_speed(num_graphs, start_size, end_size, model, batch_size=16):
     # Generate dummy data
     data_list = create_dummy_graphs(num_graphs, start_size, end_size, 4)
-    loader = DataLoader(data_list, batch_size=16, shuffle=True)
+    loader = DataLoader(data_list, batch_size=batch_size, shuffle=True)
 
     times = []
     for graph in loader:
@@ -72,8 +72,8 @@ def dummy_test():
     model.to(cfg['device'])
     model.eval()
 
-    evaluate_speed(5000, 6, 20, model)
+    evaluate_speed(5000, 6, 20, model, 16)
 
-    evaluate_speed(5000, 60, 500, model)
+    evaluate_speed(5000, 60, 500, model, 2)
 
     pass
