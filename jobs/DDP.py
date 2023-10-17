@@ -52,6 +52,7 @@ def setup(rank, world_size):
 def cleanup():
     dist.destroy_process_group()
 
+
 @timing_decorator
 def load_model_summary():
     logger = logging.getLogger("Main Process")
@@ -81,6 +82,7 @@ def load_model_summary():
             logger.info(f"==> No summary log found.")
     logger.info(f"==> No existing model found, start from scratch.")
     return None, None
+
 
 @timing_decorator
 def process(rank, world_size, config_path, verbose):

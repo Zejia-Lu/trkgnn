@@ -12,8 +12,10 @@ def get_event(input_dir, collection, index=0, e0=1, tree_name='dp', rndm=1):
         'collection': collection,
         'tree_name': tree_name,
         'E0': e0,
+        'read_from_graph': False,
     }
     cfg['momentum_predict'] = True
+    cfg['data']['graph_with_BField'] = False
 
     # load data
     data_loader = get_data_loaders(
@@ -33,7 +35,7 @@ def get_event(input_dir, collection, index=0, e0=1, tree_name='dp', rndm=1):
     df_edge = merged_df.merge(df['node'], left_on='end', right_index=True, suffixes=('_start', '_end'))
     df_node = df['node']
 
-    return df_node, df_edge
+    return df_node, df_edge, batch
 
 
 if __name__ == '__main__':

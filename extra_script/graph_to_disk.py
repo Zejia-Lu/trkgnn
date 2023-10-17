@@ -143,7 +143,6 @@ def graph_summary(graphs: list[torch_geometric.data.Data]) -> pd.DataFrame:
         **categorize_z(graphs),
     })
 
-
     return re_df
 
 
@@ -155,7 +154,7 @@ if __name__ == '__main__':
     parser.add_argument('file', type=str, help="the input root file")
     parser.add_argument('-o', '--output', type=str, default='output', help="the output directory")
     parser.add_argument('-c', '--chunk', type=str, default='50 MB', help="the chunk size")
-    parser.add_argument('-m', '--momentum_predict', type=bool, default=True, help="whether to predict momentum")
+    parser.add_argument('-m', '--momentum_predict', type=bool, default=False, help="whether to predict momentum")
     parser.add_argument('-e', '--e0', type=float, default=8000, help="the beam energy")
     parser.add_argument('-t', '--tag', type=str, default='out', help="the output file name suffix")
     parser.add_argument('-b', '--bfield', action='store_true', default=False, help="whether to use bfield")
@@ -208,5 +207,3 @@ if __name__ == '__main__':
         # df = pd.concat(df_col, ignore_index=True)
         # os.makedirs(os.path.join(args.output, 'stats'), exist_ok=True)
         # df.to_csv(os.path.join(args.output, 'stats', f'{col}.{args.tag}.csv'), index=False)
-
-
