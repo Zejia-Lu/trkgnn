@@ -42,6 +42,7 @@ def load_ntuples(
             ]).transpose()
             y = eve[f'{col}_truth'].to_numpy()
             truth_w = eve[f'{col}_weight']
+            truth_num_track = eve[f'{col}_global_num_tracks']
             # re-weight truth edge with fake one
             w = y * (1 - truth_w) / truth_w + (1 - y) * (1 - truth_w)
 
@@ -50,6 +51,7 @@ def load_ntuples(
                 edge_index=torch.from_numpy(edge_index.astype(np.int64)),
                 y=torch.from_numpy(y.astype(np.float32)),
                 w=torch.from_numpy(w.astype(np.float32)),
+                n=torch.from_numpy(np.array([truth_num_track]).astype(np.int64)),
                 i=torch.from_numpy(np.array([report.start + index])),
                 run_num=torch.from_numpy(np.array([eve['run_num']])),
                 evt_num=torch.from_numpy(np.array([eve['evt_num']])),
@@ -165,7 +167,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    origin_br = ["x", "y", "z", "start", "end", "weight", "truth"]
+    origin_br = ["x", "y", "z", "start", "end", "weight", "truth", "global_num_tracks"]
     if args.momentum_predict: origin_br += ["p"]
     if args.bfield: origin_br += ["Bx", "By", "Bz"] if not args.only_bfield_y else ["By"]
     # load data
