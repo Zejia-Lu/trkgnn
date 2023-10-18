@@ -50,7 +50,7 @@ class Trainer:
 
     def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None, train: bool = True):
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
-        if cfg['momentum_predict']:
+        if self.flag_p:
             # Compute the loss for the second task
             p_loss = self.loss_func_p(p_pred, p_true)
             # Compute the losses
