@@ -411,6 +411,8 @@ class Trainer:
 
                 # Count the difference between truth n and predicted n
                 n_diff = (n_pred - n_truth)
+                print('ndiff', n_diff)
+                print('len(n_diff[n_diff == 0])', len(n_diff[n_diff == 0]))
                 # classify difference into num_tracks_diff_list
                 num_tracks_diff_list[0] += [len(n_diff[n_diff == 0])]
                 num_tracks_diff_list[1] += [len(n_diff[n_diff == 1])]
