@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 
 from .NodeNet import NodeNetwork
+
 # Locals
 from .utils import make_mlp
 
@@ -24,9 +25,11 @@ class GNN(nn.Module):
     - an edge classifier
     """
 
-    def __init__(self, input_dim, hidden_dim,
-                 n_encoder_layers=2, n_edge_layers=4, n_node_layers=4,
-                 n_graph_iters=1, layer_norm=True, snf_output_dim=None):
+    def __init__(
+            self, input_dim, hidden_dim,
+            n_encoder_layers=2, n_edge_layers=4, n_node_layers=4,
+            n_graph_iters=1, layer_norm=True
+    ):
         super(GNN, self).__init__()
         self.n_graph_iters = n_graph_iters
 
@@ -42,15 +45,6 @@ class GNN(nn.Module):
 
         # The edge classifier computes final edge scores
         self.edge_classifier = make_mlp(2 * hidden_dim, [hidden_dim, 1], output_activation=None)
-
-        # Add this line to accept the additional argument for SNF output dimension
-        self.snf_output_dim = snf_output_dim
-
-        # Add an MLP to output features for the SNF model
-        if snf_output_dim is not None:
-            self.edge_snf_output = make_mlp(
-                2 * hidden_dim, [hidden_dim, snf_output_dim], output_activation=None
-            )
 
     def forward(self, data, verbose=False):
         # Make every edge bidirectional
@@ -87,12 +81,10 @@ class GNN(nn.Module):
         clf_inputs = torch.cat([x[start_idx], x[end_idx]], dim=1)
         edge_scores = self.edge_classifier(clf_inputs).squeeze(-1)
 
-        # Compute features for the SNF model
-        if self.snf_output_dim is not None:
-            snf_output = self.edge_snf_output(clf_inputs)
-            return edge_scores, snf_output
-        else:
-            return edge_scores
+        # # DBSCAN for graphs
+        # u = cluster_graphs(data, edge_scores, verbose=verbose)
+
+        return edge_scores
 
 
 def build_model(**kwargs):

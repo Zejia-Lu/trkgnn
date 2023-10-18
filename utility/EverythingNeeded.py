@@ -5,13 +5,18 @@ import subprocess
 import sys
 from functools import partial
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
+from torch_geometric.data import Data
+
+from sklearn.cluster import DBSCAN
 
 import models
 from utility.Control import cfg
+from utility.FunctionTime import timing_decorator
 
 
 def build_model(rank, distributed=False, existed_model_path: str = None):
@@ -160,3 +165,42 @@ def print_gpu_info(logger=None, prefix=None):
             logger.debug(f'{pre}: {output.decode()}')
         else:
             print(f'{pre}: {output.decode()}')
+
+
+@timing_decorator
+def cluster_graphs(data, edge_scores, eps: float = 0.35, verbose=False):
+    """
+    Cluster the graphs using DBSCAN
+    :param eps: eps distance for DBSCAN
+    :param data: batch data from pyg
+    :param edge_scores: predicted value without logit from GNN
+    :param verbose:
+    :return:
+    """
+    # DBSCAN for graphs
+    edge_batch_id = data.batch[data.edge_index[0]]
+    assert edge_batch_id.shape == edge_scores.shape, f"[]{edge_batch_id.shape} != {edge_scores.shape}"
+
+    # Apply the sigmoid function
+    edge_scores_logit = 1 - torch.sigmoid(edge_scores)
+
+    num_tracks = []
+    # num_tracks = torch.zeros(data.num_graphs, dtype=torch.float16, requires_grad=True)
+    for gr_id in range(data.num_graphs):
+        dd = Data(edge_index=data[gr_id].edge_index)
+        # Get the number of nodes
+        num_nodes = data[gr_id].num_nodes
+        # Initialize an empty adjacency matrix
+        adj_matrix = torch.ones((num_nodes, num_nodes))
+        # Fill in the adjacency matrix using edge_index
+        adj_matrix[dd.edge_index[0], dd.edge_index[1]] = edge_scores_logit[edge_batch_id == gr_id]
+        adj_matrix[dd.edge_index[1], dd.edge_index[0]] = edge_scores_logit[edge_batch_id == gr_id]
+
+        # Run DBSCAN on the adjacency matrix
+        cluster_labels = DBSCAN(eps=eps, min_samples=2, metric='precomputed').fit_predict(
+            adj_matrix.detach().cpu().numpy())
+
+        # Get the cluster labels
+        num_tracks.append(len(np.unique(cluster_labels[cluster_labels >= 0])))
+
+    return torch.tensor(num_tracks, dtype=torch.int32)

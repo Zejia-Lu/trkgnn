@@ -1,6 +1,5 @@
 """Utility functions for building models"""
 
-import torch
 import torch.nn as nn
 
 
@@ -33,3 +32,4 @@ def make_mlp(
             layers.append(nn.LayerNorm(sizes[-1]))
         layers.append(output_activation())
     return nn.Sequential(*layers)
+

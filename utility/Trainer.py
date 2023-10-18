@@ -8,11 +8,12 @@ import torch
 from torch import nn
 import torch.distributed as dist
 from torch.autograd import grad
+import torch.nn.functional as F
 
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
 from utility.DataLoader import get_data_loaders
-from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info
+from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info, cluster_graphs
 
 
 class Trainer:
@@ -29,6 +30,7 @@ class Trainer:
         self.lr_scheduler = lr_scheduler
         self.loss_func = loss_func
         self.loss_func_p = nn.SmoothL1Loss()
+        self.loss_func_n = nn.SmoothL1Loss()  # F.poisson_nll_loss
         self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
@@ -37,81 +39,93 @@ class Trainer:
         self.current_epoch = 0
         self.train_samples = 0
         self.valid_samples = 0
-        # Initial weights for each task
-        self.weights = torch.tensor([1.0, 1.0], device=self.device)
         # Alpha for Grad-Norm
         self.alpha = 0.25
         self.min_factor = 1e-3
         # Initialize gradient norms for each task
         self.G_0 = None
+        # Initial weights for each task
+        self.flag_n = False  # cfg['num_track_predict']
+        self.flag_p = cfg['momentum_predict']
+        self.weights = torch.ones((1 + self.flag_n + self.flag_p), device=self.device, dtype=torch.float32)
 
-    def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None, train: bool = True):
+    def loss(
+            self,
+            y_loss_fn,
+            y_pred, y_true,
+            # n_pred=None, n_true=None,
+            p_pred=None, p_true=None,
+            weight=None, train: bool = True
+    ):
+        dynamic_losses = []
+        dynamic_grads = []
+
+        # Always include the first loss
         y_loss = y_loss_fn(y_pred, y_true, weight=weight)
-        if cfg['momentum_predict']:
-            # Compute the loss for the second task
+        dynamic_losses.append(y_loss)
+        if train:
+            grads_y = grad(y_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+            dynamic_grads.append(grads_y)
+
+        if self.flag_p:
             p_loss = self.loss_func_p(p_pred, p_true)
-            # Compute the losses
-            losses = torch.stack([y_loss, p_loss])
-            # Compute the total loss as a weighted sum of the individual losses
-            total_loss = torch.dot(self.weights, losses)
+            dynamic_losses.append(p_loss)
             if train:
-                self.logger.debug(f'l1: {y_loss}, l2: {p_loss}, total: {total_loss}')
-                # Compute gradients for each task
-                grads_y = grad(y_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
                 grads_p = grad(p_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+                dynamic_grads.append(grads_p)
 
-                # Compute gradient norms
-                G_y = torch.norm(torch.cat([g.view(-1) for g in grads_y if g is not None]))
-                G_p = torch.norm(torch.cat([g.view(-1) for g in grads_p if g is not None]))
+        # if self.flag_n:
+        #     n_loss = self.loss_func_n(n_true, n_pred)
+        #     dynamic_losses.append(n_loss)
+        #     grads_n = grad(n_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+        #     dynamic_grads.append(grads_n)
 
-                # Compute gradient norms for each task and, if necessary, initial gradient norms
-                with torch.no_grad():
-                    G = torch.tensor([G_y, G_p], device=self.device)
-                    if self.G_0 is None:
-                        self.G_0 = G.clone().detach()
+        # Stack dynamically created losses and weights
+        dynamic_losses = torch.stack(dynamic_losses)
+        # Calculate total loss
+        total_loss = torch.dot(self.weights, dynamic_losses)
 
-                    self.logger.debug(f'G_y: {G_y}, G_p: {G_p}, G_0: {self.G_0}')
+        if train:
+            G_list = []
+            for grads in dynamic_grads:
+                G = torch.norm(torch.cat([g.view(-1) for g in grads if g is not None]))
+                G_list.append(G)
 
-                    # Compute the relative losses
-                    L_hat = G / self.G_0
-                    # Compute the mean relative loss
-                    mean_L_hat = torch.mean(L_hat)
+            with torch.no_grad():
+                G = torch.tensor(G_list, device=self.device)
+                if self.G_0 is None:
+                    self.G_0 = G.clone().detach()
 
-                    self.logger.debug(f'L_hat: {L_hat}, mean_L_hat: {mean_L_hat}')
+                L_hat = G / self.G_0
+                mean_L_hat = torch.mean(L_hat)
 
-                    # Compute the weight update factors
-                    factors = (1 + self.alpha * (L_hat / mean_L_hat - 1))
-                    # Log if any factors are outside the clamp range
-                    if (factors < 0).any() or (factors > 10).any():
-                        self.logger.debug(f'Clamping factors: {factors}')
-                    # Apply the clamp to the factors
-                    factors = factors.clamp(min=0, max=10)
-                    # Update the weights
-                    self.weights *= factors
-                    if self.weights[0] < self.min_factor:
-                        self.weights[0] = self.min_factor
-                    if self.weights[1] < self.min_factor:
-                        self.weights[1] = self.min_factor
-                    # Normalize the weights
-                    self.weights /= self.weights.sum()
+                self.logger.debug(f'L_hat: {L_hat}, mean_L_hat: {mean_L_hat}')
 
-                    self.logger.debug(f'factor: {1 + self.alpha * (L_hat / mean_L_hat - 1)}')
-                    self.logger.debug(f'weights: {self.weights}')
+                # Compute the weight update factors
+                factors = (1 + self.alpha * (L_hat / mean_L_hat - 1))
+                # Log if any factors are outside the clamp range
+                if (factors < 0).any() or (factors > 10).any():
+                    self.logger.debug(f'Clamping factors: {factors}')
+                # Apply the clamp to the factors
+                factors = factors.clamp(min=0, max=10)
 
-                # Apply GradNorm weights and accumulated gradients
-                for i, p in enumerate(self.model.parameters()):
-                    if p.grad is not None:
-                        p.grad = (self.weights[0] * grads_y[i] if grads_y[i] is not None else 0) + (
-                            self.weights[1] * grads_p[i] if grads_p[i] is not None else 0)
+                # Update the weights
+                self.weights *= factors
+                self.weights = torch.clamp(self.weights, min=self.min_factor)
+                # Normalize the weights
+                self.weights /= self.weights.sum()
 
-                (y_loss * self.weights[0] + p_loss * self.weights[1]).backward()
+                self.logger.debug(f'factor: {1 + self.alpha * (L_hat / mean_L_hat - 1)}')
+                self.logger.debug(f'weights: {self.weights}')
 
-            return total_loss
-        else:
-            if train:
-                y_loss.backward()
+            # Similar loop but adapted to dynamic grads and weights
+            for i, p in enumerate(self.model.parameters()):
+                if p.grad is not None:
+                    p.grad = sum(w * g[i] if g[i] is not None else 0 for w, g in zip(self.weights, dynamic_grads))
 
-            return y_loss
+            (self.weights * dynamic_losses).sum().backward()
+
+        return total_loss
 
     @timing_decorator
     def process(self, n_epochs, n_total_epochs, world_size):
@@ -237,7 +251,19 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w)
+            # # DBSCAN for graphs
+            # num_tracks = cluster_graphs(batch, y_pred)
+
+            batch_loss = self.loss(
+                y_loss_fn=self.loss_func,
+                y_pred=y_pred,
+                y_true=batch.y,
+                # n_pred=num_tracks,
+                # n_true=batch.n,
+                p_pred=p_pred,
+                p_true=p_truth,
+                weight=batch.w
+            )
 
             # move backward in self.loss()
             # batch_loss.backward()
@@ -300,6 +326,15 @@ class Trainer:
         sum_total = 0
         sum_tp, sum_fp, sum_fn, sum_tn = 0, 0, 0, 0
         diff_list = []
+        num_tracks_diff_list = {
+            0: [],
+            1: [],
+            2: [],
+            3: [],
+            -1: [],
+            -2: [],
+            -3:[],
+        }
 
         if large_loader is not None:
             self.logger.debug('Running validation on large loader with size %i', len(large_loader))
@@ -321,7 +356,21 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            batch_loss = self.loss(self.loss_func, y_pred, batch.y, p_pred, p_truth, weight=batch.w, train=False).item()
+            # # DBSCAN for graphs
+            num_tracks = cluster_graphs(batch, y_pred)
+
+            batch_loss = self.loss(
+                y_loss_fn=self.loss_func,
+                y_pred=y_pred,
+                y_true=batch.y,
+                # n_pred=num_tracks,
+                # n_true=batch.n,
+                p_pred=p_pred,
+                p_true=p_truth,
+                weight=batch.w,
+                train=False
+            ).item()
+
             sum_loss += batch_loss
 
             # Count number of correct predictions
@@ -351,6 +400,23 @@ class Trainer:
                 finite_mask = torch.isfinite(p_err)
 
                 diff_list.append(p_err[finite_mask])
+
+            if cfg['num_track_predict']:
+                n_pred = num_tracks
+                n_truth = batch.n
+
+                # Count the difference between truth n and predicted n
+                n_diff = (n_pred - n_truth)
+                # classify difference into num_tracks_diff_list
+                num_tracks_diff_list[0] += [len(n_diff[n_diff == 0])]
+                num_tracks_diff_list[1] += [len(n_diff[n_diff == 1])]
+                num_tracks_diff_list[2] += [len(n_diff[n_diff == 2])]
+                num_tracks_diff_list[-1] += [len(n_diff[n_diff == -1])]
+                num_tracks_diff_list[-2] += [len(n_diff[n_diff == -2])]
+                num_tracks_diff_list[-3] += [len(n_diff[n_diff < -2])]
+                num_tracks_diff_list[3] += [len(n_diff[n_diff > 2])]
+
+
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
             # del batch, batch_out, batch_loss
@@ -372,6 +438,14 @@ class Trainer:
         summary['valid_sum_total'] = sum_total
         summary['valid_dp_mean'] = diff.mean(dim=0).item()
         summary['valid_dp_std'] = diff.std(dim=0).item()
+        # add new numbers of tracks
+        summary['valid_num_tracks_diff_0'] = num_tracks_diff_list[0]
+        summary['valid_num_tracks_diff_1'] = num_tracks_diff_list[1]
+        summary['valid_num_tracks_diff_2'] = num_tracks_diff_list[2]
+        summary['valid_num_tracks_diff_-1'] = num_tracks_diff_list[-1]
+        summary['valid_num_tracks_diff_-2'] = num_tracks_diff_list[-2]
+        summary['valid_num_tracks_diff_underflow'] = num_tracks_diff_list[-3]
+        summary['valid_num_tracks_diff_overflow'] = num_tracks_diff_list[3]
 
         # # Check for NaN values
         # has_nan = torch.isnan(diff).any()
