@@ -6,6 +6,7 @@ DeepMind's InteractionNetwork with Residual connections.
 # Externals
 import torch
 import torch.nn as nn
+from torch_scatter import scatter_add
 
 from .NodeNet import NodeNetwork
 
@@ -40,8 +41,8 @@ class GNN(nn.Module):
         self.edge_network = make_mlp(2 * hidden_dim, [hidden_dim] * n_edge_layers, layer_norm=layer_norm)
 
         # The node network computes new node features
-        # self.node_network = make_mlp(2 * hidden_dim, [hidden_dim] * n_node_layers, layer_norm=layer_norm)
-        self.node_network = NodeNetwork(hidden_dim, hidden_dim, n_node_layers, layer_norm=layer_norm)
+        self.node_network = make_mlp(2 * hidden_dim, [hidden_dim] * n_node_layers, layer_norm=layer_norm)
+        # self.node_network = NodeNetwork(hidden_dim, hidden_dim, n_node_layers, layer_norm=layer_norm)
 
         # The edge classifier computes final edge scores
         self.edge_classifier = make_mlp(2 * hidden_dim, [hidden_dim, 1], output_activation=None)
@@ -63,15 +64,15 @@ class GNN(nn.Module):
             edge_inputs = torch.cat([x[send_idx], x[recv_idx]], dim=1)
             e = self.edge_network(edge_inputs)
 
-            # # Sum edge features coming into each node
-            # aggr_messages = scatter_add(e, recv_idx, dim=0, dim_size=x.shape[0])
-            #
-            # # Compute new node features
-            # node_inputs = torch.cat([x, aggr_messages], dim=1)
-            # x = self.node_network(node_inputs)
+            # Sum edge features coming into each node
+            aggr_messages = scatter_add(e, recv_idx, dim=0, dim_size=x.shape[0])
+
+            # Compute new node features
+            node_inputs = torch.cat([x, aggr_messages], dim=1)
+            x = self.node_network(node_inputs)
 
             # Sum edge features coming into each node
-            x = self.node_network(x, e[recv_idx], torch.cat((send_idx.view(1, -1), recv_idx.view(1, -1)), dim=0))
+            # x = self.node_network(x, e[recv_idx], torch.cat((send_idx.view(1, -1), recv_idx.view(1, -1)), dim=0))
 
             # Residual connection
             x = x + x0
