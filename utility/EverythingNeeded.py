@@ -177,6 +177,9 @@ def cluster_graphs(data, edge_scores, eps: float = 0.35, verbose=False):
     :param verbose:
     :return:
     """
+    device = edge_scores.device  # assuming edge_scores is your model output, it should be on the correct device
+    data = data.to(device)
+
     # DBSCAN for graphs
     edge_batch_id = data.batch[data.edge_index[0]]
     assert edge_batch_id.shape == edge_scores.shape, f"[]{edge_batch_id.shape} != {edge_scores.shape}"
@@ -191,7 +194,7 @@ def cluster_graphs(data, edge_scores, eps: float = 0.35, verbose=False):
         # Get the number of nodes
         num_nodes = data[gr_id].num_nodes
         # Initialize an empty adjacency matrix
-        adj_matrix = torch.ones((num_nodes, num_nodes))
+        adj_matrix = torch.ones((num_nodes, num_nodes), device=device)
         # Fill in the adjacency matrix using edge_index
         adj_matrix[dd.edge_index[0], dd.edge_index[1]] = edge_scores_logit[edge_batch_id == gr_id]
         adj_matrix[dd.edge_index[1], dd.edge_index[0]] = edge_scores_logit[edge_batch_id == gr_id]
