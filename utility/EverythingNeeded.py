@@ -206,4 +206,5 @@ def cluster_graphs(data, edge_scores, eps: float = 0.35, verbose=False):
         # Get the cluster labels
         num_tracks.append(len(np.unique(cluster_labels[cluster_labels >= 0])))
 
-    return torch.tensor(num_tracks, dtype=torch.int32)
+    # return torch.tensor(num_tracks, dtype=torch.int32)
+    return np.array(num_tracks)

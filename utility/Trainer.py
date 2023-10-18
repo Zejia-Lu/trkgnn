@@ -403,7 +403,7 @@ class Trainer:
 
             if cfg['num_track_predict']:
                 n_pred = num_tracks
-                n_truth = batch.n
+                n_truth = batch.n.detach().cpu().numpy()
 
                 # Count the difference between truth n and predicted n
                 n_diff = (n_pred - n_truth)
