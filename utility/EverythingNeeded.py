@@ -199,9 +199,11 @@ def cluster_graphs(data, edge_scores, eps: float = 0.35, verbose=False):
                 f"The graph (evt: {data[gr_id].evt_num.item()}, "
                 f"run:  {data[gr_id].run_num.item()}) has no nodes or edges."
             )
+            num_tracks.append(0)
             continue  # Skip this iteration
 
         if not torch.any(edge_batch_id == gr_id):
+            num_tracks.append(0)
             continue  # Skip this iteration
 
         dd = Data(edge_index=data[gr_id].edge_index)
