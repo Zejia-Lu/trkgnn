@@ -177,6 +177,8 @@ def cluster_graphs(data, edge_scores, eps: float = 0.35, verbose=False):
     :param verbose:
     :return:
     """
+    logger = logging.getLogger(__name__)
+
     device = edge_scores.device  # assuming edge_scores is your model output, it should be on the correct device
     data = data.to(device)
 
@@ -190,6 +192,18 @@ def cluster_graphs(data, edge_scores, eps: float = 0.35, verbose=False):
     num_tracks = []
     # num_tracks = torch.zeros(data.num_graphs, dtype=torch.float16, requires_grad=True)
     for gr_id in range(data.num_graphs):
+
+        num_nodes = data[gr_id].num_nodes
+        if num_nodes == 0 or data[gr_id].edge_index.shape[0] != 2 or data[gr_id].edge_index.shape[1] < 1:
+            logger.debug(
+                f"The graph (evt: {data[gr_id].evt_num.item()}, "
+                f"run:  {data[gr_id].run_num.item()}) has no nodes or edges."
+            )
+            continue  # Skip this iteration
+
+        if not torch.any(edge_batch_id == gr_id):
+            continue  # Skip this iteration
+
         dd = Data(edge_index=data[gr_id].edge_index)
         # Get the number of nodes
         num_nodes = data[gr_id].num_nodes
