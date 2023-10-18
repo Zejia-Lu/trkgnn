@@ -331,13 +331,13 @@ class Trainer:
         sum_tp, sum_fp, sum_fn, sum_tn = 0, 0, 0, 0
         diff_list = []
         num_tracks_diff_list = {
-            0: [],
-            1: [],
-            2: [],
-            3: [],
-            -1: [],
-            -2: [],
-            -3:[],
+            0: 0,
+            1: 0,
+            2: 0,
+            3: 0,
+            -1: 0,
+            -2: 0,
+            -3: 0,
         }
 
         if large_loader is not None:
@@ -414,14 +414,13 @@ class Trainer:
                 print('ndiff', n_diff)
                 print('len(n_diff[n_diff == 0])', len(n_diff[n_diff == 0]))
                 # classify difference into num_tracks_diff_list
-                num_tracks_diff_list[0] += [len(n_diff[n_diff == 0])]
-                num_tracks_diff_list[1] += [len(n_diff[n_diff == 1])]
-                num_tracks_diff_list[2] += [len(n_diff[n_diff == 2])]
-                num_tracks_diff_list[-1] += [len(n_diff[n_diff == -1])]
-                num_tracks_diff_list[-2] += [len(n_diff[n_diff == -2])]
-                num_tracks_diff_list[-3] += [len(n_diff[n_diff < -2])]
-                num_tracks_diff_list[3] += [len(n_diff[n_diff > 2])]
-
+                num_tracks_diff_list[0] += len(n_diff[n_diff == 0])
+                num_tracks_diff_list[1] += len(n_diff[n_diff == 1])
+                num_tracks_diff_list[2] += len(n_diff[n_diff == 2])
+                num_tracks_diff_list[-1] += len(n_diff[n_diff == -1])
+                num_tracks_diff_list[-2] += len(n_diff[n_diff == -2])
+                num_tracks_diff_list[-3] += len(n_diff[n_diff < -2])
+                num_tracks_diff_list[3] += len(n_diff[n_diff > 2])
 
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
