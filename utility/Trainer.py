@@ -367,11 +367,11 @@ class Trainer:
             batch_pred = torch.sigmoid(y_pred)
             batch_pred = batch_pred > self.acc_threshold
             truth_label = batch.y > self.acc_threshold
+
             matches = (batch_pred == truth_label)
             sum_correct += matches.float().mul(batch.w).sum().item()
-            sum_total += matches.float().mul(batch.w).numel()
-
-            print('correct: ', sum_correct, 'total: ', sum_total)
+            sum_total += batch.w.sum().item()
+            self.logger.debug('correct: %i, total: %i', sum_correct, sum_total)
 
             # Compute weighted true positives, false positives, true negatives, and false negatives
             sum_tp += ((batch_pred == 1) & (truth_label == 1)).float().mul(batch.w).sum().item()
