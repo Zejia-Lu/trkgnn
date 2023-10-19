@@ -35,6 +35,16 @@ def load_config(file_str: str) -> None:
         cfg['plot_path'] = os.path.join(cfg['output_dir'], 'plots')
 
 
+def save_config(config) -> None:
+    cfg_path = os.path.join(config['output_dir'], 'train.yaml')
+
+    if not os.path.exists(config['output_dir']):
+        return
+
+    with open(cfg_path, 'w') as f:
+        yaml.dump(config, f)
+
+
 if __name__ == '__main__':
     load_config(r'scripts/config.yaml')
 

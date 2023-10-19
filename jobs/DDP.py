@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import torch
 
-from utility.Control import load_config, cfg
+from utility.Control import load_config, cfg, save_config
 from utility.Trainer import Trainer
 from utility.EverythingNeeded import build_model, build_optimizer, build_loss, config_logging
 from utility.FunctionTime import timing_decorator, print_accumulated_times
@@ -175,6 +175,8 @@ def process(rank, world_size, config_path, verbose):
     fig = visual_summary_log(df, t)
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.png'))
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.pdf'))
+
+    save_config(cfg)
 
 
 def parallel_process(config_path, world_size, verbose):
