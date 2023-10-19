@@ -123,9 +123,11 @@ def get_item_from_dataloader(dataloader, index):
     raise StopIteration("Index out of range")
 
 
-def convert_batch_to_df(batch):
+def convert_batch_to_df(batch, cols=None):
     # Convert node features (x) to a DataFrame
-    df_node = pd.DataFrame(batch.x.cpu().numpy(), columns=['x', 'y', 'z'])
+    if cols is None:
+        cols = ['x', 'y', 'z']
+    df_node = pd.DataFrame(batch.x.cpu().numpy(), columns=cols)
 
     # Convert edge_index to a DataFrame with 'start' and 'end' columns
     edge_index_numpy = batch.edge_index.cpu().numpy()

@@ -8,13 +8,13 @@ import numpy as np
 
 color_dict = {
     'Correct': '#965601',
-    'True Negative': '#da4892',
+    'False Negative': '#da4892',
     'False Positive': '#1c965c',
 }
 line_dict = {
     'Correct': 'solid',
-    'True Negative': 'dash',
-    'False Positive': 'dash',
+    'False Negative': 'dash',
+    'False Positive': 'solid',
 }
 
 
@@ -23,7 +23,7 @@ def select_df_with_cut(df_in, cut_value):
         if a > 0.5 and b >= c:
             return 'Correct'
         elif a > 0.5 and b < c:
-            return 'True Negative'
+            return 'False Negative'
         elif a < 0.5 and b >= c:
             return 'False Positive'
         else:
