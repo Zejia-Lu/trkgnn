@@ -370,6 +370,9 @@ class Trainer:
             matches = (batch_pred == truth_label)
             sum_correct += matches.float().mul(batch.w).sum().item()
             sum_total += matches.float().mul(batch.w).numel()
+
+            print('correct: ', sum_correct, 'total: ', sum_total)
+
             # Compute weighted true positives, false positives, true negatives, and false negatives
             sum_tp += ((batch_pred == 1) & (truth_label == 1)).float().mul(batch.w).sum().item()
             sum_fp += ((batch_pred == 1) & (truth_label == 0)).float().mul(batch.w).sum().item()
