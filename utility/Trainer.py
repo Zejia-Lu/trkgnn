@@ -347,7 +347,7 @@ class Trainer:
                 p_truth, p_pred = None, None
 
             # # DBSCAN for graphs
-            num_tracks = cluster_graphs(batch, y_pred)
+            num_tracks = cluster_graphs(batch, y_pred, eps=self.acc_threshold)
 
             batch_loss = self.loss(
                 y_loss_fn=self.loss_func,
