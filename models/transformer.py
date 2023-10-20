@@ -17,24 +17,30 @@ class TransGNN(nn.Module):
         self.node_embedding = make_mlp(node_input_dim, [hidden_dim] * n_encoder_layers)
         self.edge_embedding = make_mlp(edge_input_dim, [hidden_dim] * n_encoder_layers)
 
-        self.transformer_conv_list = nn.ModuleList([
-            TransformerConv(2 * hidden_dim, hidden_dim, heads=heads) for _ in range(n_iterations)
-        ])
+        # self.transformer_conv_list = nn.ModuleList([
+        #     TransformerConv(2 * hidden_dim, hidden_dim, heads=heads) for _ in range(n_iterations)
+        # ])
+        #
+        # self.norm_transconv_list = nn.ModuleList([
+        #     nn.LayerNorm(heads * hidden_dim) for _ in range(n_iterations)
+        # ])
+        #
+        # self.norm_combined_list = nn.ModuleList([
+        #     nn.LayerNorm(2 * hidden_dim) for _ in range(n_iterations)
+        # ])
+        #
+        # self.projection_layer_edge_list = nn.ModuleList(
+        #     [nn.Linear(hidden_dim * heads, hidden_dim) for _ in range(n_iterations)]
+        # )
+        # self.projection_layer_node_list = nn.ModuleList(
+        #     [nn.Linear(hidden_dim * heads, hidden_dim) for _ in range(n_iterations)]
+        # )
 
-        self.norm_transconv_list = nn.ModuleList([
-            nn.LayerNorm(heads * hidden_dim) for _ in range(n_iterations)
-        ])
-
-        self.norm_combined_list = nn.ModuleList([
-            nn.LayerNorm(2 * hidden_dim) for _ in range(n_iterations)
-        ])
-
-        self.projection_layer_edge_list = nn.ModuleList(
-            [nn.Linear(hidden_dim * heads, hidden_dim) for _ in range(n_iterations)]
-        )
-        self.projection_layer_node_list = nn.ModuleList(
-            [nn.Linear(hidden_dim * heads, hidden_dim) for _ in range(n_iterations)]
-        )
+        self.transformer_conv = TransformerConv(2 * hidden_dim, hidden_dim, heads=heads)
+        self.norm_transconv = nn.LayerNorm(heads * hidden_dim)
+        self.norm_combined = nn.LayerNorm(2 * hidden_dim)
+        self.projection_layer_edge = nn.Linear(hidden_dim * heads, hidden_dim)
+        self.projection_layer_node = nn.Linear(hidden_dim * heads, hidden_dim)
 
         # The edge classifier computes final edge scores
         self.edge_classifier = make_mlp(2 * hidden_dim, [hidden_dim, 1], output_activation=None)
@@ -56,16 +62,17 @@ class TransGNN(nn.Module):
         # Edge indices is of shape [2, E], where E is the number of edges
         src_indices, dst_indices = edge_indices
 
-        for i, (
-                transformer_conv, norm_combined, norm_transconv, projection_layer_edge,
-                projection_layer_node) in enumerate(
-            zip(
-                self.transformer_conv_list,
-                self.norm_combined_list,
-                self.norm_transconv_list,
-                self.projection_layer_edge_list,
-                self.projection_layer_node_list
-            )):
+        # for i, (
+        #         transformer_conv, norm_combined, norm_transconv, projection_layer_edge,
+        #         projection_layer_node) in enumerate(
+        #     zip(
+        #         self.transformer_conv_list,
+        #         self.norm_combined_list,
+        #         self.norm_transconv_list,
+        #         self.projection_layer_edge_list,
+        #         self.projection_layer_node_list
+        #     )):
+        for i in range(self.n_iterations):
             x0 = node_features
             e0 = edge_features
 
@@ -74,22 +81,22 @@ class TransGNN(nn.Module):
 
             # Combine node and aggregated edge features
             combined_features = torch.cat([node_features, aggregated_from_src - node_features], dim=1)
-            combined_features = norm_combined(combined_features)
+            combined_features = self.norm_combined(combined_features)
             print(f"Norm Combined Layer {i} is called. Output has grad_fn: {combined_features.requires_grad}")
 
             # Pass through Transformer layer
-            out_node_features = transformer_conv(combined_features, edge_indices)
+            out_node_features = self.transformer_conv(combined_features, edge_indices)
             print(f"Transformer Conv Layer {i} is called. Output has grad_fn: {out_node_features.requires_grad}")
 
-            out_node_features = norm_transconv(out_node_features)
+            out_node_features = self.norm_transconv(out_node_features)
             print(f"Norm TransConv Layer {i} is called. Output has grad_fn: {out_node_features.requires_grad}")
 
             # Update node and edge features for the next iteration
-            node_features = projection_layer_node(out_node_features)
-            print(f"Projection Layer Edge {i} is called. Output has grad_fn: {edge_features.requires_grad}")
-
-            edge_features = projection_layer_edge(out_node_features[src_indices] - out_node_features[dst_indices])
+            node_features = self.projection_layer_node(out_node_features)
             print(f"Projection Layer Node {i} is called. Output has grad_fn: {node_features.requires_grad}")
+
+            edge_features = self.projection_layer_edge(out_node_features[src_indices] - out_node_features[dst_indices])
+            print(f"Projection Layer Edge {i} is called. Output has grad_fn: {edge_features.requires_grad}")
 
             # shortcut
             node_features = node_features + x0
