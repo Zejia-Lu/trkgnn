@@ -72,7 +72,6 @@ class TransGNN(nn.Module):
                 self.projection_layer_edge_list,
                 self.projection_layer_node_list
             )):
-        # for i in range(self.n_iterations):
             x0 = node_features
             e0 = edge_features
 
@@ -82,21 +81,21 @@ class TransGNN(nn.Module):
             # Combine node and aggregated edge features
             combined_features = torch.cat([node_features, aggregated_from_src - node_features], dim=1)
             combined_features = norm_combined(combined_features)
-            print(f"Norm Combined Layer {i} is called. Output has grad_fn: {combined_features.requires_grad}")
+            # print(f"Norm Combined Layer {i} is called. Output has grad_fn: {combined_features.requires_grad}")
 
             # Pass through Transformer layer
             out_node_features = transformer_conv(combined_features, edge_indices)
-            print(f"Transformer Conv Layer {i} is called. Output has grad_fn: {out_node_features.requires_grad}")
+            # print(f"Transformer Conv Layer {i} is called. Output has grad_fn: {out_node_features.requires_grad}")
 
             out_node_features = norm_transconv(out_node_features)
-            print(f"Norm TransConv Layer {i} is called. Output has grad_fn: {out_node_features.requires_grad}")
+            # print(f"Norm TransConv Layer {i} is called. Output has grad_fn: {out_node_features.requires_grad}")
 
             # Update node and edge features for the next iteration
             node_features = projection_layer_node(out_node_features)
-            print(f"Projection Layer Node {i} is called. Output has grad_fn: {node_features.requires_grad}")
+            # print(f"Projection Layer Node {i} is called. Output has grad_fn: {node_features.requires_grad}")
 
             edge_features = projection_layer_edge(out_node_features[src_indices] - out_node_features[dst_indices])
-            print(f"Projection Layer Edge {i} is called. Output has grad_fn: {edge_features.requires_grad}")
+            # print(f"Projection Layer Edge {i} is called. Output has grad_fn: {edge_features.requires_grad}")
 
             # shortcut
             node_features = node_features + x0
