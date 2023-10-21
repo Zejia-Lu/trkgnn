@@ -57,6 +57,12 @@ class Trainer:
             losses = torch.stack([y_loss, p_loss])
             # Compute the total loss as a weighted sum of the individual losses
             total_loss = torch.dot(self.weights, losses)
+            detailed_pack = {
+                'y_loss': y_loss.item(),
+                'p_loss': p_loss.item(),
+                'y_weight': self.weights[0].item(),
+                'p_weight': self.weights[1].item(),
+            }
             if train:
                 self.logger.debug(f'l1: {y_loss}, l2: {p_loss}, total: {total_loss}')
                 # Compute gradients for each task
@@ -109,12 +115,20 @@ class Trainer:
 
                 (y_loss * self.weights[0] + p_loss * self.weights[1]).backward()
 
-            return total_loss
+                total_loss = torch.dot(self.weights, losses)
+                detailed_pack = {
+                    'y_loss': y_loss.item(),
+                    'p_loss': p_loss.item(),
+                    'y_weight': self.weights[0].item(),
+                    'p_weight': self.weights[1].item(),
+                }
+
+            return total_loss, detailed_pack
         else:
             if train:
                 y_loss.backward()
 
-            return y_loss
+            return y_loss, None
 
     @timing_decorator
     def process(self, n_epochs, n_total_epochs, world_size):
@@ -217,6 +231,10 @@ class Trainer:
         # Prepare summary information
         summary = dict()
         sum_loss = 0
+        sum_y_loss = 0
+        sum_p_loss = 0
+        sum_y_weight = 0
+        sum_p_weight = 0
 
         # Loop over training batches
         for i, batch in enumerate(data_loader if large_loader is None else chain(data_loader, large_loader)):
@@ -228,10 +246,10 @@ class Trainer:
             if torch.cuda.is_available():
                 print_gpu_info(self.logger)
             self.model.zero_grad()
-            batch_out = self.model(batch, verbose=True if get_memory_size_MB(batch) > 1 else False)
+            batch_out = self.model(batch)
 
             if cfg['momentum_predict']:
-                y_pred, p_out = batch_out
+                p_out, y_pred, p_y_pred = batch_out
                 # calculate momentum prediction
                 con_mask = (batch.y == 1)
                 p_truth = batch.p[con_mask]
@@ -241,10 +259,8 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            # # DBSCAN for graphs
-            # num_tracks = cluster_graphs(batch, y_pred)
 
-            batch_loss = self.loss(
+            batch_loss, loss_detail = self.loss(
                 y_loss_fn=self.loss_func,
                 y_pred=y_pred,
                 y_true=batch.y,
@@ -260,6 +276,11 @@ class Trainer:
 
             self.optimizer.step()
             sum_loss += batch_loss.item()
+            if self.flag_p:
+                sum_y_loss += loss_detail['y_loss']
+                sum_p_loss += loss_detail['p_loss']
+                sum_y_weight += loss_detail['y_weight']
+                sum_p_weight += loss_detail['p_weight']
 
             # Dump additional debugging information
             if self.logger.isEnabledFor(logging.DEBUG):
@@ -298,6 +319,11 @@ class Trainer:
         summary['l2'] = get_weight_norm(self.model, 2)
         summary['grad_norm'] = get_grad_norm(self.model)
         summary['train_batches'] = n_batches
+        if self.flag_p:
+            summary['train_y_loss'] = sum_y_loss / n_batches
+            summary['train_p_loss'] = sum_p_loss / n_batches
+            summary['train_y_weight'] = sum_y_weight / n_batches
+            summary['train_p_weight'] = sum_p_weight / n_batches
         self.logger.debug(' Processed %i batches', n_batches)
         self.logger.debug(' Model LR %f l1 %.2f l2 %.2f', summary['lr'], summary['l1'], summary['l2'])
         self.logger.info('  Training loss: %.3f', summary['train_loss'])
@@ -312,6 +338,11 @@ class Trainer:
         # Prepare summary information
         summary = dict()
         sum_loss = 0
+        sum_y_loss = 0
+        sum_p_loss = 0
+        sum_y_weight = 0
+        sum_p_weight = 0
+
         sum_correct = 0
         sum_total = 0
         sum_tp, sum_fp, sum_fn, sum_tn = 0, 0, 0, 0
@@ -338,7 +369,7 @@ class Trainer:
 
             batch_out = self.model(batch)
             if cfg['momentum_predict']:
-                y_pred, p_out = batch_out
+                p_out, y_pred, p_y_pred = batch_out
                 con_mask = (batch.y == 1)
                 p_truth = batch.p[con_mask]
                 p_pred = p_out[con_mask]
@@ -346,22 +377,17 @@ class Trainer:
                 y_pred = batch_out
                 p_truth, p_pred = None, None
 
-            # # DBSCAN for graphs
-            num_tracks = cluster_graphs(batch, y_pred, eps=self.acc_threshold)
-
-            batch_loss = self.loss(
+            batch_loss, _ = self.loss(
                 y_loss_fn=self.loss_func,
                 y_pred=y_pred,
                 y_true=batch.y,
-                # n_pred=num_tracks,
-                # n_true=batch.n,
                 p_pred=p_pred,
                 p_true=p_truth,
                 weight=batch.w,
                 train=False
-            ).item()
+            )
 
-            sum_loss += batch_loss
+            sum_loss += batch_loss.item()
 
             # Count number of correct predictions
             batch_pred = torch.sigmoid(y_pred)
@@ -396,6 +422,9 @@ class Trainer:
                 diff_list.append(p_err[finite_mask])
 
             if cfg['num_track_predict']:
+                # # DBSCAN for graphs
+                num_tracks = cluster_graphs(batch, y_pred, eps=self.acc_threshold)
+
                 n_pred = num_tracks
                 n_truth = batch.n.detach().cpu().numpy()
 
@@ -432,13 +461,14 @@ class Trainer:
         summary['valid_dp_mean'] = diff.mean(dim=0).item()
         summary['valid_dp_std'] = diff.std(dim=0).item()
         # add new numbers of tracks
-        summary['valid_num_tracks_diff_0'] = num_tracks_diff_list[0]
-        summary['valid_num_tracks_diff_1'] = num_tracks_diff_list[1]
-        summary['valid_num_tracks_diff_2'] = num_tracks_diff_list[2]
-        summary['valid_num_tracks_diff_-1'] = num_tracks_diff_list[-1]
-        summary['valid_num_tracks_diff_-2'] = num_tracks_diff_list[-2]
-        summary['valid_num_tracks_diff_underflow'] = num_tracks_diff_list[-3]
-        summary['valid_num_tracks_diff_overflow'] = num_tracks_diff_list[3]
+        if cfg['num_track_predict']:
+            summary['valid_num_tracks_diff_0'] = num_tracks_diff_list[0]
+            summary['valid_num_tracks_diff_1'] = num_tracks_diff_list[1]
+            summary['valid_num_tracks_diff_2'] = num_tracks_diff_list[2]
+            summary['valid_num_tracks_diff_-1'] = num_tracks_diff_list[-1]
+            summary['valid_num_tracks_diff_-2'] = num_tracks_diff_list[-2]
+            summary['valid_num_tracks_diff_underflow'] = num_tracks_diff_list[-3]
+            summary['valid_num_tracks_diff_overflow'] = num_tracks_diff_list[3]
 
         # # Check for NaN values
         # has_nan = torch.isnan(diff).any()

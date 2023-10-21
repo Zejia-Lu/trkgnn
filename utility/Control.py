@@ -35,6 +35,9 @@ def load_config(file_str: str) -> None:
 
         cfg['plot_path'] = os.path.join(cfg['output_dir'], 'plots')
 
+        if 'link_only' in cfg['model']:
+            cfg['momentum_predict'] = not cfg['model']['link_only']
+
 
 def save_config(config) -> None:
     cfg_path = os.path.join(config['output_dir'], 'train.yaml')
