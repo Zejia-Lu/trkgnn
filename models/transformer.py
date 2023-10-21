@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.nn import TransformerConv
 from torch_scatter import scatter_add
-from torch_sparse import SparseTensor
+# from torch_sparse import SparseTensor
 
 import logging
 
