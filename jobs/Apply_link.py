@@ -88,6 +88,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                     batch.edge_attr = torch.cat(
                         [batch.edge_attr, y_pred.unsqueeze(-1)], dim=1) if not truth else torch.cat(
                         [batch.edge_attr, batch.y.unsqueeze(-1)], dim=1)
+                    batch = batch.to("cpu")
 
                     predicted_graph_list += batch.to_data_list()
 
