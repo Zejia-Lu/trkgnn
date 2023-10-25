@@ -186,32 +186,10 @@ def visual_summary_log(df, t):
 
     y_max, y_min = df.max()[['train_loss', 'valid_loss']].max(), df.min()[['train_loss', 'valid_loss']].min()
 
-    df_new = df[['epoch', 'train_loss', 'valid_loss', 'valid_dp_mean', 'valid_dp_std', 'valid_acc']]. \
+    df_new = df[['epoch', 'train_loss', 'valid_loss', 'valid_acc']]. \
         groupby('epoch').transform("mean").drop_duplicates(keep='last', subset=['train_loss'])
 
-    mu_max = df.abs().max()['valid_dp_mean']
-    std_max = df.abs().max()['valid_dp_std']
-
     fig.data = []
-    fig.add_trace(
-        go.Scatter(
-            x=df_new.index,
-            y=df_new['valid_dp_mean'],
-            mode='lines', name="itr: p mean",
-            line=dict(dash='dot', color="#ff7f0e"), yaxis='y3',
-            legendgroup="Momentum",
-            legendgrouptitle_text="Momentum",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df_new.index,
-            y=df_new['valid_dp_std'],
-            mode='lines', name="itr: p std",
-            line=dict(dash='dot', color="#64a05f"), yaxis='y4',
-            legendgroup="Momentum",
-        )
-    )
 
     fig.add_trace(
         go.Scatter(
@@ -287,40 +265,15 @@ def visual_summary_log(df, t):
             title=r"$-log(\epsilon_{error})$",
             titlefont=dict(color="#11ADF0"),
             tickfont=dict(color="#11ADF0"),
-            anchor="free",
-            overlaying="y",
-            side="left",
-            position=0.0,
+            # anchor="free",
+            # overlaying="y",
+            side="right",
+            # position=0.0,
             showgrid=False,
             linecolor="#11ADF0", gridcolor='#d9d9d9',
             zeroline=False,
             # type="log",
             # range=[3.0, 3.7],
-        ),
-        yaxis3=dict(
-            title=r"$\mu^{p}_{\textrm{valid}}$",
-            titlefont=dict(color="#ff7f0e"),
-            tickfont=dict(color="#ff7f0e"),
-            anchor="x",
-            overlaying="y",
-            side="right",
-            showgrid=False,
-            linecolor="#ff7f0e", gridcolor='#d9d9d9',
-            zeroline=False,
-            range=[-mu_max * 1.05, mu_max * 1.05]
-        ),
-        yaxis4=dict(
-            title=r"$\sigma^{p}_{\textrm{valid}}$",
-            titlefont=dict(color="#64a05f"),
-            tickfont=dict(color="#64a05f"),
-            anchor="free",
-            overlaying="y",
-            side="right",
-            position=0.95,
-            showgrid=False,
-            linecolor="#64a05f", gridcolor='#d9d9d9',
-            zeroline=False,
-            range=[0.0, std_max],
         ),
     )
 

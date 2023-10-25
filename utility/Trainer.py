@@ -28,9 +28,8 @@ class Trainer:
         self.model = model
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
-        self.loss_func = loss_func
+        self.loss_func_y = loss_func
         self.loss_func_p = nn.SmoothL1Loss()
-        self.loss_func_n = nn.SmoothL1Loss()  # F.poisson_nll_loss
         self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
@@ -48,87 +47,12 @@ class Trainer:
         # Initial weights for each task
         self.weights = torch.tensor([1.0, 1.0], device=self.device)
 
-    def loss(self, y_loss_fn, y_pred, y_true, p_pred=None, p_true=None, weight=None, train: bool = True):
-        y_loss = y_loss_fn(y_pred, y_true, weight=weight)
-        if self.flag_p:
-            # Compute the loss for the second task
-            p_loss = self.loss_func_p(p_pred, p_true)
-            # Compute the losses
-            losses = torch.stack([y_loss, p_loss])
-            # Compute the total loss as a weighted sum of the individual losses
-            total_loss = torch.dot(self.weights, losses)
-            detailed_pack = {
-                'y_loss': y_loss.item(),
-                'p_loss': p_loss.item(),
-                'y_weight': self.weights[0].item(),
-                'p_weight': self.weights[1].item(),
-            }
-            if train:
-                self.logger.debug(f'l1: {y_loss}, l2: {p_loss}, total: {total_loss}')
-                # Compute gradients for each task
-                grads_y = grad(y_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
-                grads_p = grad(p_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+    def y_loss(self, y_pred, y_true, weight=None):
+        loss = self.loss_func(y_pred, y_true, weight=weight)
+        return loss
 
-                # Compute gradient norms
-                G_y = torch.norm(torch.cat([g.view(-1) for g in grads_y if g is not None]))
-                G_p = torch.norm(torch.cat([g.view(-1) for g in grads_p if g is not None]))
-
-                # Compute gradient norms for each task and, if necessary, initial gradient norms
-                with torch.no_grad():
-                    G = torch.tensor([G_y, G_p], device=self.device)
-                    if self.G_0 is None:
-                        self.G_0 = G.clone().detach()
-
-                    self.logger.debug(f'G_y: {G_y}, G_p: {G_p}, G_0: {self.G_0}')
-
-                    # Compute the relative losses
-                    L_hat = G / self.G_0
-                    # Compute the mean relative loss
-                    mean_L_hat = torch.mean(L_hat)
-
-                    self.logger.debug(f'L_hat: {L_hat}, mean_L_hat: {mean_L_hat}')
-
-                    # Compute the weight update factors
-                    factors = (1 + self.alpha * (L_hat / mean_L_hat - 1))
-                    # Log if any factors are outside the clamp range
-                    if (factors < 0).any() or (factors > 10).any():
-                        self.logger.debug(f'Clamping factors: {factors}')
-                    # Apply the clamp to the factors
-                    factors = factors.clamp(min=0, max=10)
-                    # Update the weights
-                    self.weights *= factors
-                    if self.weights[0] < self.min_factor:
-                        self.weights[0] = self.min_factor
-                    if self.weights[1] < self.min_factor:
-                        self.weights[1] = self.min_factor
-                    # Normalize the weights
-                    self.weights /= self.weights.sum()
-
-                    self.logger.debug(f'factor: {1 + self.alpha * (L_hat / mean_L_hat - 1)}')
-                    self.logger.debug(f'weights: {self.weights}')
-
-                # Apply GradNorm weights and accumulated gradients
-                for i, p in enumerate(self.model.parameters()):
-                    if p.grad is not None:
-                        p.grad = (self.weights[0] * grads_y[i] if grads_y[i] is not None else 0) + (
-                            self.weights[1] * grads_p[i] if grads_p[i] is not None else 0)
-
-                (y_loss * self.weights[0] + p_loss * self.weights[1]).backward()
-
-                total_loss = torch.dot(self.weights, losses)
-                detailed_pack = {
-                    'y_loss': y_loss.item(),
-                    'p_loss': p_loss.item(),
-                    'y_weight': self.weights[0].item(),
-                    'p_weight': self.weights[1].item(),
-                }
-
-            return total_loss, detailed_pack
-        else:
-            if train:
-                y_loss.backward()
-
-            return y_loss, None
+    def p_loss(self, p_pred, p_true):
+        return self.loss_func_p(p_pred, p_true)
 
     @timing_decorator
     def process(self, n_epochs, n_total_epochs, world_size):
@@ -226,15 +150,13 @@ class Trainer:
     @timing_decorator
     def train_iteration(self, data_loader, large_loader=None):
         """Train for one epoch"""
+
         self.model.train()
 
         # Prepare summary information
         summary = dict()
         sum_loss = 0
-        sum_y_loss = 0
-        sum_p_loss = 0
-        sum_y_weight = 0
-        sum_p_weight = 0
+        batch_loss = None
 
         # Loop over training batches
         for i, batch in enumerate(data_loader if large_loader is None else chain(data_loader, large_loader)):
@@ -248,39 +170,23 @@ class Trainer:
             self.model.zero_grad()
             batch_out = self.model(batch)
 
-            if cfg['momentum_predict']:
-                p_out, y_pred, p_y_pred = batch_out
+            if cfg['task'] == 'link':
+                y_pred = batch_out
+                batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
+                batch_loss.backward()
+            elif cfg['task'] == 'momentum':
+                p_pred_all = batch_out
                 # calculate momentum prediction
                 con_mask = (batch.y == 1)
                 p_truth = batch.p[con_mask]
-                p_pred = p_out[con_mask]
+                p_pred = p_pred_all[con_mask]
+                batch_loss = self.loss_func_p(p_pred, p_truth)
                 del con_mask
-            else:
-                y_pred = batch_out
-                p_truth, p_pred = None, None
+                batch_loss.backward()
 
-
-            batch_loss, loss_detail = self.loss(
-                y_loss_fn=self.loss_func,
-                y_pred=y_pred,
-                y_true=batch.y,
-                # n_pred=num_tracks,
-                # n_true=batch.n,
-                p_pred=p_pred,
-                p_true=p_truth,
-                weight=batch.w
-            )
-
-            # move backward in self.loss()
-            # batch_loss.backward()
-
-            self.optimizer.step()
-            sum_loss += batch_loss.item()
-            if self.flag_p:
-                sum_y_loss += loss_detail['y_loss']
-                sum_p_loss += loss_detail['p_loss']
-                sum_y_weight += loss_detail['y_weight']
-                sum_p_weight += loss_detail['p_weight']
+            if batch_loss is not None:
+                self.optimizer.step()
+                sum_loss += batch_loss.item()
 
             # Dump additional debugging information
             if self.logger.isEnabledFor(logging.DEBUG):
@@ -319,11 +225,6 @@ class Trainer:
         summary['l2'] = get_weight_norm(self.model, 2)
         summary['grad_norm'] = get_grad_norm(self.model)
         summary['train_batches'] = n_batches
-        if self.flag_p:
-            summary['train_y_loss'] = sum_y_loss / n_batches
-            summary['train_p_loss'] = sum_p_loss / n_batches
-            summary['train_y_weight'] = sum_y_weight / n_batches
-            summary['train_p_weight'] = sum_p_weight / n_batches
         self.logger.debug(' Processed %i batches', n_batches)
         self.logger.debug(' Model LR %f l1 %.2f l2 %.2f', summary['lr'], summary['l1'], summary['l2'])
         self.logger.info('  Training loss: %.3f', summary['train_loss'])
@@ -338,14 +239,20 @@ class Trainer:
         # Prepare summary information
         summary = dict()
         sum_loss = 0
-        sum_y_loss = 0
-        sum_p_loss = 0
-        sum_y_weight = 0
-        sum_p_weight = 0
 
-        sum_correct = 0
-        sum_total = 0
-        sum_tp, sum_fp, sum_fn, sum_tn = 0, 0, 0, 0
+        results_link = {
+            'sum_correct': 0,
+            'sum_total': 0,
+            'sum_tp': 0,
+            'sum_fp': 0,
+            'sum_fn': 0,
+            'sum_tn': 0,
+        }
+
+        results_momentum = {
+
+        }
+
         diff_list = []
         num_tracks_diff_list = {
             0: 0,
@@ -356,6 +263,8 @@ class Trainer:
             -2: 0,
             -3: 0,
         }
+
+        batch_loss = None
 
         if large_loader is not None:
             self.logger.debug('Running validation on large loader with size %i', len(large_loader))
@@ -368,76 +277,44 @@ class Trainer:
             batch = batch.to(self.device)
 
             batch_out = self.model(batch)
-            if cfg['momentum_predict']:
-                p_out, y_pred, p_y_pred = batch_out
+
+            if cfg['task'] == 'link':
+                y_pred = batch_out
+                batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
+
+                self.eval_link(y_pred, batch.y, results_link, weight=batch.w)
+
+                if cfg['num_track_predict']:
+                    # # DBSCAN for graphs
+                    num_tracks = cluster_graphs(batch, y_pred, eps=self.acc_threshold)
+
+                    n_pred = num_tracks
+                    n_truth = batch.n.detach().cpu().numpy()
+
+                    # Count the difference between truth n and predicted n
+                    n_diff = (n_pred - n_truth)
+                    # classify difference into num_tracks_diff_list
+                    num_tracks_diff_list[0] += len(n_diff[n_diff == 0])
+                    num_tracks_diff_list[1] += len(n_diff[n_diff == 1])
+                    num_tracks_diff_list[2] += len(n_diff[n_diff == 2])
+                    num_tracks_diff_list[-1] += len(n_diff[n_diff == -1])
+                    num_tracks_diff_list[-2] += len(n_diff[n_diff == -2])
+                    num_tracks_diff_list[-3] += len(n_diff[n_diff < -2])
+                    num_tracks_diff_list[3] += len(n_diff[n_diff > 2])
+
+            elif cfg['task'] == 'momentum':
+                p_pred_all = batch_out
+                # calculate momentum prediction
                 con_mask = (batch.y == 1)
                 p_truth = batch.p[con_mask]
-                p_pred = p_out[con_mask]
-            else:
-                y_pred = batch_out
-                p_truth, p_pred = None, None
+                p_pred = p_pred_all[con_mask]
+                batch_loss = self.loss_func_p(p_pred, p_truth)
+                del con_mask
 
-            batch_loss, _ = self.loss(
-                y_loss_fn=self.loss_func,
-                y_pred=y_pred,
-                y_true=batch.y,
-                p_pred=p_pred,
-                p_true=p_truth,
-                weight=batch.w,
-                train=False
-            )
+                self.eval_momentum(p_pred, p_truth, diff_list)
 
-            sum_loss += batch_loss.item()
-
-            # Count number of correct predictions
-            batch_pred = torch.sigmoid(y_pred)
-            batch_pred = batch_pred > self.acc_threshold
-            truth_label = batch.y > self.acc_threshold
-
-            matches = (batch_pred == truth_label)
-            sum_correct += matches.float().mul(batch.w).sum().item()
-            sum_total += batch.w.sum().item()
-            self.logger.debug('correct: %i, total: %i', sum_correct, sum_total)
-
-            # Compute weighted true positives, false positives, true negatives, and false negatives
-            sum_tp += ((batch_pred == 1) & (truth_label == 1)).float().mul(batch.w).sum().item()
-            sum_fp += ((batch_pred == 1) & (truth_label == 0)).float().mul(batch.w).sum().item()
-            sum_tn += ((batch_pred == 0) & (truth_label == 0)).float().mul(batch.w).sum().item()
-            sum_fn += ((batch_pred == 0) & (truth_label == 1)).float().mul(batch.w).sum().item()
-
-            # Count the difference between truth p and predicted p
-            if cfg['momentum_predict']:
-                p_err = (p_pred - p_truth) / p_truth
-
-                # Count the number of NaN values
-                nan_count = torch.isnan(p_err).sum()
-                self.logger.debug(f"Number of NaN values: {nan_count.item()}")
-
-                # Count the number of Inf values
-                inf_count = torch.isinf(p_err).sum()
-                self.logger.debug(f"Number of Inf values: {inf_count.item()}")
-
-                finite_mask = torch.isfinite(p_err)
-
-                diff_list.append(p_err[finite_mask])
-
-            if cfg['num_track_predict']:
-                # # DBSCAN for graphs
-                num_tracks = cluster_graphs(batch, y_pred, eps=self.acc_threshold)
-
-                n_pred = num_tracks
-                n_truth = batch.n.detach().cpu().numpy()
-
-                # Count the difference between truth n and predicted n
-                n_diff = (n_pred - n_truth)
-                # classify difference into num_tracks_diff_list
-                num_tracks_diff_list[0] += len(n_diff[n_diff == 0])
-                num_tracks_diff_list[1] += len(n_diff[n_diff == 1])
-                num_tracks_diff_list[2] += len(n_diff[n_diff == 2])
-                num_tracks_diff_list[-1] += len(n_diff[n_diff == -1])
-                num_tracks_diff_list[-2] += len(n_diff[n_diff == -2])
-                num_tracks_diff_list[-3] += len(n_diff[n_diff < -2])
-                num_tracks_diff_list[3] += len(n_diff[n_diff > 2])
+            if batch_loss is not None:
+                sum_loss += batch_loss.item()
 
             self.logger.debug(' valid batch %i, loss %.4f', i, batch_loss)
 
@@ -449,26 +326,32 @@ class Trainer:
 
         # Summarize the validation epoch
         n_batches = len(data_loader)
-        diff = torch.cat(diff_list, dim=0) if cfg['momentum_predict'] else torch.Tensor([-999])
         summary['valid_loss'] = sum_loss / n_batches
-        summary['valid_acc'] = sum_correct / sum_total
-        summary["valid_TP"] = sum_tp
-        summary["valid_FP"] = sum_fp
-        summary["valid_TN"] = sum_tn
-        summary["valid_FN"] = sum_fn
         summary['valid_batches'] = n_batches
-        summary['valid_sum_total'] = sum_total
-        summary['valid_dp_mean'] = diff.mean(dim=0).item()
-        summary['valid_dp_std'] = diff.std(dim=0).item()
-        # add new numbers of tracks
-        if cfg['num_track_predict']:
-            summary['valid_num_tracks_diff_0'] = num_tracks_diff_list[0]
-            summary['valid_num_tracks_diff_1'] = num_tracks_diff_list[1]
-            summary['valid_num_tracks_diff_2'] = num_tracks_diff_list[2]
-            summary['valid_num_tracks_diff_-1'] = num_tracks_diff_list[-1]
-            summary['valid_num_tracks_diff_-2'] = num_tracks_diff_list[-2]
-            summary['valid_num_tracks_diff_underflow'] = num_tracks_diff_list[-3]
-            summary['valid_num_tracks_diff_overflow'] = num_tracks_diff_list[3]
+
+        if cfg['task'] == 'link':
+            summary['valid_acc'] = results_link['sum_correct'] / results_link['sum_total']
+            summary["valid_TP"] = results_link['sum_tp']
+            summary["valid_FP"] = results_link['sum_fp']
+            summary["valid_TN"] = results_link['sum_tn']
+            summary["valid_FN"] = results_link['sum_fn']
+            summary['valid_sum_total'] = results_link['sum_total']
+
+            if cfg['num_track_predict']:
+                summary['valid_num_tracks_diff_0'] = num_tracks_diff_list[0]
+                summary['valid_num_tracks_diff_1'] = num_tracks_diff_list[1]
+                summary['valid_num_tracks_diff_2'] = num_tracks_diff_list[2]
+                summary['valid_num_tracks_diff_-1'] = num_tracks_diff_list[-1]
+                summary['valid_num_tracks_diff_-2'] = num_tracks_diff_list[-2]
+                summary['valid_num_tracks_diff_underflow'] = num_tracks_diff_list[-3]
+                summary['valid_num_tracks_diff_overflow'] = num_tracks_diff_list[3]
+
+        if cfg['task'] == 'momentum':
+            diff = torch.cat(diff_list, dim=0)
+            summary['valid_dp_mean'] = diff.mean(dim=0).item()
+            summary['valid_dp_std'] = diff.std(dim=0).item()
+
+            self.logger.debug(' -- momentum mean %.3f std %.3f ' % (summary['valid_dp_mean'], summary['valid_dp_std']))
 
         # # Check for NaN values
         # has_nan = torch.isnan(diff).any()
@@ -479,10 +362,41 @@ class Trainer:
         # print(f"Contains Inf values: {has_inf.item()}")
 
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
-        self.logger.debug(' -- momentum mean %.3f std %.3f ' % (summary['valid_dp_mean'], summary['valid_dp_std']))
         self.logger.info('  Validation loss: %.3f acc: %.3f' % (summary['valid_loss'], summary['valid_acc']))
 
         return summary
+
+    def eval_link(self, y_pred, y_true, results, weight=None):
+        # Count number of correct predictions
+        batch_pred = torch.sigmoid(y_pred)
+        batch_pred = batch_pred > self.acc_threshold
+        truth_label = y_true > self.acc_threshold
+
+        matches = (batch_pred == truth_label)
+        results['sum_correct'] += matches.float().mul(weight).sum().item()
+        results['sum_total'] += weight.sum().item()
+        self.logger.debug('correct: %i, total: %i', results['sum_correct'], results['sum_total'])
+
+        # Compute weighted true positives, false positives, true negatives, and false negatives
+        results['sum_tp'] += ((batch_pred == 1) & (truth_label == 1)).float().mul(weight).sum().item()
+        results['sum_fp'] += ((batch_pred == 1) & (truth_label == 0)).float().mul(weight).sum().item()
+        results['sum_tn'] += ((batch_pred == 0) & (truth_label == 0)).float().mul(weight).sum().item()
+        results['sum_fn'] += ((batch_pred == 0) & (truth_label == 1)).float().mul(weight).sum().item()
+
+    def eval_momentum(self, p_pred, p_truth, diff_list):
+        p_err = (p_pred - p_truth) / p_truth
+
+        # Count the number of NaN values
+        nan_count = torch.isnan(p_err).sum()
+        self.logger.debug(f"Number of NaN values: {nan_count.item()}")
+
+        # Count the number of Inf values
+        inf_count = torch.isinf(p_err).sum()
+        self.logger.debug(f"Number of Inf values: {inf_count.item()}")
+
+        finite_mask = torch.isfinite(p_err)
+
+        diff_list.append(p_err[finite_mask])
 
     def add_summary(self, summaries):
         if self.summaries is None:
