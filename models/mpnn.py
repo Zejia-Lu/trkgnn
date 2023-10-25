@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch_scatter import scatter_add
 
-from .NodeNet import NodeNetwork
+from .MomNet import NodeNetwork
 
 # Locals
 from .utils import make_mlp

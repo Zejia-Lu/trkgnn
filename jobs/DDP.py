@@ -12,7 +12,7 @@ from utility.FunctionTime import timing_decorator, print_accumulated_times
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
-from visualization.scripts.plotting import read_local_csv, visual_summary_log
+from visualization.scripts.plotting import read_local_csv, visual_summary_link, visual_summary_momentum
 
 
 def setup(rank, world_size):
@@ -172,7 +172,12 @@ def process(rank, world_size, config_path, verbose):
         return
     os.makedirs(cfg['plot_path'], exist_ok=True)
     df, t = read_local_csv(os.path.join(cfg['output_dir'], 'summaries_0.csv'))
-    fig = visual_summary_log(df, t)
+
+    fig = None
+    if cfg['task'] == 'link':
+        fig = visual_summary_link(df, t)
+    elif cfg['task'] == 'momentum':
+        fig = visual_summary_momentum(df,t)
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.png'))
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.pdf'))
 

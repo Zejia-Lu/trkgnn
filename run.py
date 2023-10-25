@@ -24,7 +24,7 @@ def main(arg):
 
     if arg.command == 'apply_link':
         load_config(arg.config)
-        predict(arg.input, arg.model, arg.output)
+        predict(arg.input, arg.model, arg.output, arg.truth)
         print_accumulated_times()
 
     if arg.command == 'dummy':
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     # add argument for training config file
     apply_link.add_argument('-c', '--config', default='config.yaml', type=str, help="the config file for training")
     # add argument for saving graphs
-    apply_link.add_argument('-s', '--save', action='store_true', help="save the graphs to the output directory")
+    apply_link.add_argument('-t', '--truth', action='store_true', help="use truth edge information")
 
     # parser for dummy test
     dummy = subparsers.add_parser('dummy', help='dummy test the evaluation speed')

@@ -43,7 +43,6 @@ class Trainer:
         self.min_factor = 1e-3
         # Initialize gradient norms for each task
         self.G_0 = None
-        self.flag_p = cfg['momentum_predict']
         # Initial weights for each task
         self.weights = torch.tensor([1.0, 1.0], device=self.device)
 
@@ -175,7 +174,7 @@ class Trainer:
                 batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
                 batch_loss.backward()
             elif cfg['task'] == 'momentum':
-                p_pred_all = batch_out
+                p_pred_all, new_y_score = batch_out
                 # calculate momentum prediction
                 con_mask = (batch.y == 1)
                 p_truth = batch.p[con_mask]
@@ -303,7 +302,7 @@ class Trainer:
                     num_tracks_diff_list[3] += len(n_diff[n_diff > 2])
 
             elif cfg['task'] == 'momentum':
-                p_pred_all = batch_out
+                p_pred_all, new_y_score = batch_out
                 # calculate momentum prediction
                 con_mask = (batch.y == 1)
                 p_truth = batch.p[con_mask]
@@ -362,7 +361,7 @@ class Trainer:
         # print(f"Contains Inf values: {has_inf.item()}")
 
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
-        self.logger.info('  Validation loss: %.3f acc: %.3f' % (summary['valid_loss'], summary['valid_acc']))
+        self.logger.info('  Validation loss: %.3f' % summary['valid_loss'])
 
         return summary
 

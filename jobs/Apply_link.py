@@ -39,7 +39,7 @@ def setup():
 
 @timing_decorator
 @torch.no_grad()
-def predict(input_dir: list[str], model_dir: str, output_dir: str):
+def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool = False):
     config_logging(True, output_dir=output_dir, prefix='apply')
     setup()
     logger = logging.getLogger("Apply.Link")
@@ -47,6 +47,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str):
     logger.info(f"input_dir: {input_dir}")
     logger.info(f"model_dir: {model_dir}")
     logger.info(f"output_dir: {output_dir}")
+    if truth: logger.info(f"Truth Mode !")
 
     # Build model and load model
     model = build_model(cfg['device'], distributed=False)
@@ -69,7 +70,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str):
             apply=True,
         )
 
-        output_graph_dir = os.path.join(output_dir, f"predicted_graphs")
+        output_graph_dir = os.path.join(output_dir, cfg['data']['collection'])
         os.makedirs(output_graph_dir, exist_ok=True)
 
         itr = 0
@@ -84,9 +85,11 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str):
                     batch = batch.to(cfg['device'])
                     batch_out = model(batch)
                     y_pred = torch.sigmoid(batch_out)
-                    batch.edge_attr = torch.cat([batch.edge_attr, y_pred.unsqueeze(-1)], dim=1)
+                    batch.edge_attr = torch.cat(
+                        [batch.edge_attr, y_pred.unsqueeze(-1)], dim=1) if not truth else torch.cat(
+                        [batch.edge_attr, batch.y.unsqueeze(-1)], dim=1)
 
-                    predicted_graph_list += [batch.to_data_list()]
+                    predicted_graph_list += batch.to_data_list()
 
                 torch.save(predicted_graph_list, os.path.join(output_graph_dir, f"graph_{itr}.pt"))
                 itr += 1

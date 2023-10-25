@@ -181,7 +181,7 @@ def read_local_csv(local_csv_file):
     return df, f"{dt_object.year} - {dt_object.month} - {dt_object.day}   {dt_object.hour} : {dt_object.minute}"
 
 
-def visual_summary_log(df, t):
+def visual_summary_link(df, t):
     fig = go.Figure()
 
     y_max, y_min = df.max()[['train_loss', 'valid_loss']].max(), df.min()[['train_loss', 'valid_loss']].min()
@@ -274,6 +274,126 @@ def visual_summary_log(df, t):
             zeroline=False,
             # type="log",
             # range=[3.0, 3.7],
+        ),
+    )
+
+    return fig
+
+
+def visual_summary_momentum(df, t):
+    fig = go.Figure()
+
+    y_max, y_min = df.max()[['train_loss', 'valid_loss']].max(), df.min()[['train_loss', 'valid_loss']].min()
+
+    df_new = df[['epoch', 'train_loss', 'valid_loss', 'valid_dp_mean', 'valid_dp_std']]. \
+        groupby('epoch').transform("mean").drop_duplicates(keep='last', subset=['train_loss'])
+
+    fig.data = []
+
+    fig.add_trace(
+        go.Scatter(
+            x=df.index, y=df['train_loss'], mode='lines', name="itr: train", legendgroup="Itr Loss",
+            legendgrouptitle_text="Itr Loss", line=dict(dash='dot'))
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df.index, y=df['valid_loss'], mode='lines', name="itr: valid", legendgroup="Itr Loss",
+            line=dict(dash='dot')
+        ))
+    fig.add_trace(
+        go.Scatter(
+            x=df_new.index,
+            y=df_new['valid_dp_mean'],
+            mode='lines', name="p: mean",
+            line=dict(dash='dot', color="#ff7f0e"), yaxis='y2',
+            legendgroup="Edge Label",
+            legendgrouptitle_text="Edge Label",
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=df_new.index,
+            y=df_new['valid_dp_std'],
+            mode='lines', name="p: std",
+            line=dict(dash='dot', color="#64a05f"), yaxis='y3',
+            legendgroup="Edge Label",
+            legendgrouptitle_text="Edge Label",
+        )
+    )
+
+    fig.add_trace(go.Scatter(
+        x=df_new.index, y=df_new['train_loss'], mode='lines+markers', name="epoch: train",
+        legendgroup="Epoch Loss", legendgrouptitle_text="Epoch Loss"
+    ))
+    fig.add_trace(go.Scatter(
+        x=df_new.index, y=df_new['valid_loss'], mode='lines+markers', name="epoch: valid",
+        legendgroup="Epoch Loss"
+    ))
+
+    for lr in df.drop_duplicates(keep="first", subset=['lr'])['lr'].items():
+        print(lr)
+        fig.add_vline(x=lr[0], line_width=2, line_dash="dash", line_color="grey")
+        fig.add_annotation(
+            text=f'$\eta = {lr[1]}$',
+            x=lr[0] + 0.5, y=np.log10(y_min) * 1.02,  # Set the position using numeric values
+            xanchor='left',
+            # yanchor='bottom',
+            showarrow=False,
+            font=dict(size=14, color='grey')
+        )
+
+    fig.update_layout(
+        title=f"{t} --> Epoch: {df['epoch'].iloc[-1]}, Iteration: {df['itr'].iloc[-1]}",
+        width=1200,
+        height=700,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(
+            title_text="Total iteration",
+            showgrid=False,
+            mirror=True,
+            showline=True,
+            zeroline=False,
+            linewidth=2,
+            linecolor='#666666', gridcolor='#d9d9d9',
+            domain=[0.1, 0.85],
+        ),
+        yaxis=dict(
+            title=r"Loss",
+            titlefont=dict(color="#d62728"),
+            tickfont=dict(color="#d62728"),
+            showgrid=False,
+            linecolor="#d62728", gridcolor='#d9d9d9',
+            zeroline=False,
+            type="log",
+            range=[np.log10(y_min) * 1.05, np.log10(y_max) * 1.05],
+        ),
+        yaxis2=dict(
+            title=r"$\mu^{p}_{\textrm{valid}}$",
+            titlefont=dict(color="#ff7f0e"),
+            tickfont=dict(color="#ff7f0e"),
+            anchor="x",
+            overlaying="y",
+            side="right",
+            showgrid=False,
+            linecolor="#ff7f0e", gridcolor='#d9d9d9',
+            zeroline=False,
+            # range=[-mu_max * 1.05, mu_max * 1.05]
+        ),
+        yaxis3=dict(
+            title=r"$\sigma^{p}_{\textrm{valid}}$",
+            titlefont=dict(color="#64a05f"),
+            tickfont=dict(color="#64a05f"),
+            anchor="free",
+            overlaying="y",
+            side="right",
+            position=0.95,
+            showgrid=False,
+            linecolor="#64a05f", gridcolor='#d9d9d9',
+            zeroline=False,
+            # range=[0.0, std_max],
+            # range=[0.0, 1.0],
         ),
     )
 

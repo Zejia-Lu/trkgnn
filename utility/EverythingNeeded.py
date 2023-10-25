@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 from torch_geometric.data import Data
+from torchinfo import summary
 
 from sklearn.cluster import DBSCAN
 
@@ -24,6 +25,7 @@ def build_model(rank, distributed=False, existed_model_path: str = None):
     if 'model' in cfg:
         model_configs = cfg['model']
         model = models.get_model(**model_configs).to(rank)
+        summary(model, depth=3)
 
         if existed_model_path is not None:
             model.load_state_dict(torch.load(existed_model_path)['model'])
