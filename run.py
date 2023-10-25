@@ -4,6 +4,7 @@ from utility.Control import load_config, save_config
 from jobs.quick_test import quick_test
 from jobs.DDP import parallel_process
 from jobs.Apply import apply_to_ds
+from jobs.Apply_link import predict
 from jobs.dummy_test import dummy_test
 from utility.FunctionTime import print_accumulated_times
 
@@ -19,6 +20,11 @@ def main(arg):
     if arg.command == 'apply':
         load_config(arg.config)
         apply_to_ds(arg.input, arg.model, arg.output, arg.save)
+        print_accumulated_times()
+
+    if arg.command == 'apply_link':
+        load_config(arg.config)
+        predict(arg.input, arg.model, arg.output)
         print_accumulated_times()
 
     if arg.command == 'dummy':
@@ -58,6 +64,19 @@ if __name__ == '__main__':
     apply.add_argument('-c', '--config', default='config.yaml', type=str, help="the config file for training")
     # add argument for saving graphs
     apply.add_argument('-s', '--save', action='store_true', help="save the graphs to the output directory")
+
+    # parser for link application
+    apply_link = subparsers.add_parser('apply_link', help='apply the link model to the dataset')
+    # add argument for the input dataset (can be multiple)
+    apply_link.add_argument('input', nargs='+', type=str, help="the input dataset directories")
+    # add argument for the model directory
+    apply_link.add_argument('-m', '--model', default='model', type=str, help="the model directory")
+    # add argument for the output directory (default: current directory)
+    apply_link.add_argument('-o', '--output', default='.', type=str, help="the output directory")
+    # add argument for training config file
+    apply_link.add_argument('-c', '--config', default='config.yaml', type=str, help="the config file for training")
+    # add argument for saving graphs
+    apply_link.add_argument('-s', '--save', action='store_true', help="save the graphs to the output directory")
 
     # parser for dummy test
     dummy = subparsers.add_parser('dummy', help='dummy test the evaluation speed')

@@ -29,7 +29,10 @@ def get_data_loaders(
 ):
     # if read from graph defined in config
     if cfg['data']['read_from_graph']:
-        chunk_generator = load_graph(os.path.join(input_dir, cfg["data"]["collection"]))
+        if input_dir.endswith('.pt'):
+            chunk_generator = load_graph(input_dir)
+        else:
+            chunk_generator = load_graph(os.path.join(input_dir, cfg["data"]["collection"]))
     else:
         original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
         if cfg['momentum_predict']: original_branch += ["p"]
@@ -143,7 +146,7 @@ def get_data_loaders(
             # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
             # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
 
-            yield train_data_loader, valid_data_loader, None, # large_data_loader
+            yield train_data_loader, valid_data_loader, None,  # large_data_loader
 
 
 @timing_decorator
@@ -210,20 +213,27 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", ap
 
 @timing_decorator
 def load_graph(graph_file_list):
-    # check if the directory exists
-    if os.path.isdir(graph_file_list):
-        files = glob.glob(os.path.join(graph_file_list, '*.pt'))
-    else:
-        print(f"The directory {graph_file_list} does not exist.")
-        raise FileNotFoundError
-
-    if cfg['data']['global_stop_graph_file'] >= 0:
-        files = files[:cfg['data']['global_stop_graph_file']]
-
-    for file_name in files:
+    # check if endswith .pt
+    if graph_file_list.endswith('.pt'):
         # Load the file and yield it
-        tensor = torch.load(file_name)
+        tensor = torch.load(graph_file_list)
+
         yield tensor
+    else:
+        # check if the directory exists
+        if os.path.isdir(graph_file_list):
+            files = glob.glob(os.path.join(graph_file_list, '*.pt'))
+        else:
+            print(f"The directory {graph_file_list} does not exist.")
+            raise FileNotFoundError
+
+        if cfg['data']['global_stop_graph_file'] >= 0:
+            files = files[:cfg['data']['global_stop_graph_file']]
+
+        for file_name in files:
+            # Load the file and yield it
+            tensor = torch.load(file_name)
+            yield tensor
 
 
 class GNNTrackData(Dataset):
