@@ -29,7 +29,7 @@ class Trainer:
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.loss_func_y = loss_func
-        self.loss_func_p = nn.SmoothL1Loss()
+        self.loss_func_p = nn.SmoothL1Loss(beta=0.1)
         self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
@@ -47,7 +47,7 @@ class Trainer:
         self.weights = torch.tensor([1.0, 1.0], device=self.device)
 
     def y_loss(self, y_pred, y_true, weight=None):
-        loss = self.loss_func(y_pred, y_true, weight=weight)
+        loss = self.loss_func_y(y_pred, y_true, weight=weight)
         return loss
 
     def p_loss(self, p_pred, p_true):
