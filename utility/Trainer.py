@@ -10,11 +10,13 @@ import torch.distributed as dist
 from torch.autograd import grad
 import torch.nn.functional as F
 
+from models.RelativeHuberLoss import RelativeHuberLoss
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
 from utility.DataLoader import get_data_loaders
 from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info, cluster_graphs
 
+import torch
 
 class Trainer:
     def __init__(
@@ -29,7 +31,8 @@ class Trainer:
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.loss_func_y = loss_func
-        self.loss_func_p = nn.SmoothL1Loss(beta=0.1)
+        # self.loss_func_p = nn.SmoothL1Loss(beta=0.1)
+        self.loss_func_p = RelativeHuberLoss(delta=1, epsilon=1e-6)
         self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
