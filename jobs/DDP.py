@@ -102,7 +102,7 @@ def process(rank, world_size, config_path, verbose):
         group=pathlib.PurePath(cfg['output_dir']).name,
         job_type="train",
         name=f"DDP_{rank}",
-        resume="auto",
+        # resume="auto",
         config=cfg,
     )
     # define a metric we are interested in the minimum of
