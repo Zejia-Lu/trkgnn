@@ -95,8 +95,9 @@ class Trainer:
         # if self.output_dir is not None and self.rank == 0:
         #     self.write_checkpoint(checkpoint_id=epoch)
 
-        self.best_model_artifact.add_file(self.best_model_path)
-        wandb.log_artifact(self.best_model_artifact)
+        if self.rank == 0:
+            self.best_model_artifact.add_file(self.best_model_path)
+            wandb.log_artifact(self.best_model_artifact)
 
     @timing_decorator
     def process_epoch(self, epoch, world_size):

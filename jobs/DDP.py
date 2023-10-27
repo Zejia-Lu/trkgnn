@@ -118,7 +118,7 @@ def process(rank, world_size, config_path, verbose, record):
     # define a metric we are interested in the minimum of
     wandb.define_metric("valid_loss", summary="min")
     # define artifact
-    artifact = wandb.Artifact("best_model", type="model")
+    artifact = wandb.Artifact("best_model", type="model") if rank == 0 else None
 
     # check if the model and summary log exists, if so, load it
     existed_model_path, summary_log = load_model_summary()
