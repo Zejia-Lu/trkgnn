@@ -1,7 +1,7 @@
 # System imports
 import glob
 import os
-from typing import Union, List, Tuple
+import logging
 
 # External imports
 import numpy as np
@@ -27,6 +27,8 @@ def get_data_loaders(
         input_dir, chunk_size, batch_size,
         distributed=False, n_workers=0, rank=None, n_ranks=None, shuffle=True, apply=False
 ):
+    logger = logging.getLogger(__name__)
+
     # if read from graph defined in config
     if cfg['data']['read_from_graph']:
         if input_dir.endswith('.pt'):
@@ -48,10 +50,10 @@ def get_data_loaders(
         try:
             chunk_data = next(chunk_generator)
             if chunk_data is None:
-                print("All chunks are loaded")
+                logger.debug("All chunks are loaded")
                 break
         except StopIteration:
-            print("All chunks are loaded")
+            logger.info("All chunks are loaded")
             break
 
         if not shuffle:
@@ -77,7 +79,7 @@ def get_data_loaders(
             ]
 
             if len(indices_to_move) > 0:
-                print(f"{len(indices_to_move)} large graphs Detected")
+                logger.debug(f"{len(indices_to_move)} large graphs Detected")
             for i in sorted(indices_to_move, reverse=True):
                 if get_memory_size_MB(chunk_data[i]) < cfg['data']['max_graph_size']:
                     large_graphs.append(chunk_data[i])
@@ -213,6 +215,8 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", ap
 
 @timing_decorator
 def load_graph(graph_file_list):
+    logger = logging.getLogger(__name__)
+
     # check if endswith .pt
     if graph_file_list.endswith('.pt'):
         # Load the file and yield it
@@ -224,7 +228,7 @@ def load_graph(graph_file_list):
         if os.path.isdir(graph_file_list):
             files = glob.glob(os.path.join(graph_file_list, '*.pt'))
         else:
-            print(f"The directory {graph_file_list} does not exist.")
+            logger.warning(f"The directory {graph_file_list} does not exist.")
             raise FileNotFoundError
 
         if cfg['data']['global_stop_graph_file'] >= 0:

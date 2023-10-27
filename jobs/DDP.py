@@ -1,8 +1,11 @@
 import logging
 import os
+import pathlib
 
 import pandas as pd
 import torch
+
+import wandb
 
 from utility.Control import load_config, cfg, save_config
 from utility.Trainer import Trainer
@@ -94,6 +97,17 @@ def process(rank, world_size, config_path, verbose):
     logger.info(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
 
+    wandb.init(
+        project=f"TrkGNN_DDP_{cfg['task']}",
+        group=pathlib.PurePath(cfg['output_dir']).name,
+        job_type="train",
+        name=f"DDP_{rank}",
+        resume="auto",
+        config=cfg,
+    )
+    # define a metric we are interested in the minimum of
+    wandb.define_metric("valid_loss", summary="min")
+
     # check if the model and summary log exists, if so, load it
     existed_model_path, summary_log = load_model_summary()
 
@@ -151,6 +165,13 @@ def process(rank, world_size, config_path, verbose):
 
     trainer.summaries = summary_log
 
+    wandb.watch(
+        trainer.model,
+        criterion=trainer.loss_func_y if cfg['task'] == 'link' else trainer.loss_func_p,
+        log='all',
+        log_freq=1,
+    )
+
     trainer.process(
         n_epochs=cfg['training']['n_epochs'],
         n_total_epochs=cfg['training']['n_total_epochs'],
@@ -177,11 +198,13 @@ def process(rank, world_size, config_path, verbose):
     if cfg['task'] == 'link':
         fig = visual_summary_link(df, t)
     elif cfg['task'] == 'momentum':
-        fig = visual_summary_momentum(df,t)
+        fig = visual_summary_momentum(df, t)
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.png'))
     fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.pdf'))
 
     save_config(cfg)
+
+    wandb.finish()
 
 
 def parallel_process(config_path, world_size, verbose):

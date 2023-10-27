@@ -1,6 +1,6 @@
 import argparse
-from utility.Control import load_config, save_config
 
+from utility.Control import load_config
 from jobs.quick_test import quick_test
 from jobs.DDP import parallel_process
 from jobs.Apply import apply_to_ds

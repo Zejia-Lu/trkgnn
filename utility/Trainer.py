@@ -3,6 +3,7 @@ import os
 import gc
 from itertools import chain
 
+import numpy as np
 import pandas as pd
 import torch
 from torch import nn
@@ -10,13 +11,17 @@ import torch.distributed as dist
 from torch.autograd import grad
 import torch.nn.functional as F
 
+import wandb
+
 from models.RelativeHuberLoss import RelativeHuberLoss
 from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
 from utility.DataLoader import get_data_loaders
 from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info, cluster_graphs
+from visualization.scripts.wandb_plots import roc_curve, pr_curve
 
 import torch
+
 
 class Trainer:
     def __init__(
@@ -72,7 +77,7 @@ class Trainer:
 
         # Loop over epochs
         for epoch in range(start_epoch, end_epoch):
-            self.logger.info('Epoch %i' % epoch)
+            self.logger.info(f'Epoch {epoch} Started')
             self.current_epoch = epoch
 
             self.train_samples = 0
@@ -104,6 +109,9 @@ class Trainer:
             rank=self.rank,
             n_ranks=world_size,
         )
+        epoch_metrics = dict()
+        epoch_metrics['epoch'] = epoch
+
         itr = 0
         while True:
             if torch.cuda.is_available():
@@ -118,11 +126,11 @@ class Trainer:
                 try:
                     train_data.sampler.set_epoch(epoch)
                 except AttributeError:
-                    self.logger.info('Sampler has no set_epoch method')
+                    self.logger.debug('Sampler has no set_epoch method')
                     pass
 
-                train_sum = self.train_iteration(train_data, large_data)
-                valid_sum = self.valid_iteration(valid_data, large_data)
+                train_sum = self.train_iteration(train_data, large_data, metrics=epoch_metrics)
+                valid_sum = self.valid_iteration(valid_data, large_data, metrics=epoch_metrics)
 
                 train_sum['itr'] = itr
                 train_sum['epoch'] = epoch
@@ -139,18 +147,47 @@ class Trainer:
 
                 if torch.cuda.is_available():
                     # Print memory usage at the start of each batch
-                    self.logger.info(
+                    self.logger.debug(
                         f'[Iteration: {itr}] Peak Memory allocated: {torch.cuda.max_memory_allocated() / (1024 * 1024)} MB')
-                    self.logger.info(
+                    self.logger.debug(
                         f'[Iteration: {itr}] Peak Memory reserved: {torch.cuda.max_memory_reserved() / (1024 * 1024)} MB')
 
                 itr += 1
             except StopIteration:
-                print("Finish")
                 break
 
+        epoch_metrics['train_loss'] = epoch_metrics['train_loss'] / epoch_metrics['train_batches']
+        epoch_metrics['valid_loss'] = epoch_metrics['valid_loss'] / epoch_metrics['valid_batches']
+
+        if cfg['task'] == 'link':
+            epoch_metrics['roc'] = roc_curve(
+                y_true=epoch_metrics['valid_y_true'],
+                y_probas=epoch_metrics['valid_y_pred'],
+                sample_weights=epoch_metrics['valid_y_weight'],
+                labels=['fake', 'truth'],
+            )
+            epoch_metrics['pr'] = pr_curve(
+                y_true=epoch_metrics['valid_y_true'],
+                y_probas=epoch_metrics['valid_y_pred'],
+                sample_weights=epoch_metrics['valid_y_weight'],
+                labels=['fake', 'truth'],
+            )
+
+            del epoch_metrics['valid_y_true'], epoch_metrics['valid_y_pred'], epoch_metrics['valid_y_weight']
+
+        if cfg['task'] == 'momentum':
+            epoch_metrics['valid_momentum'] = wandb.Histogram(epoch_metrics['valid_p_diff'], num_bins=25)
+
+            del epoch_metrics['valid_p_diff']
+
+        del epoch_metrics['train_batches'], epoch_metrics['valid_batches']
+
+        wandb.log(epoch_metrics)
+
+        self.logger.info(f"Epoch {epoch} finished")
+
     @timing_decorator
-    def train_iteration(self, data_loader, large_loader=None):
+    def train_iteration(self, data_loader, large_loader=None, metrics: dict = None):
         """Train for one epoch"""
 
         self.model.train()
@@ -223,18 +260,22 @@ class Trainer:
         n_batches = len(data_loader)
         summary['lr'] = self.optimizer.param_groups[0]['lr']
         summary['train_loss'] = sum_loss / n_batches
-        summary['l1'] = get_weight_norm(self.model, 1)
-        summary['l2'] = get_weight_norm(self.model, 2)
-        summary['grad_norm'] = get_grad_norm(self.model)
+        # summary['l1'] = get_weight_norm(self.model, 1)
+        # summary['l2'] = get_weight_norm(self.model, 2)
+        # summary['grad_norm'] = get_grad_norm(self.model)
         summary['train_batches'] = n_batches
         self.logger.debug(' Processed %i batches', n_batches)
-        self.logger.debug(' Model LR %f l1 %.2f l2 %.2f', summary['lr'], summary['l1'], summary['l2'])
-        self.logger.info('  Training loss: %.3f', summary['train_loss'])
+        # self.logger.debug(' Model LR %f l1 %.2f l2 %.2f', summary['lr'], summary['l1'], summary['l2'])
+        self.logger.debug('  Training loss: %.3f', summary['train_loss'])
+
+        metrics['train_loss'] = sum_loss
+        metrics['train_batches'] = n_batches
+
         return summary
 
     @timing_decorator
     @torch.no_grad()
-    def valid_iteration(self, data_loader, large_loader=None):
+    def valid_iteration(self, data_loader, large_loader=None, metrics: dict = None):
         """"Evaluate the model"""
         self.model.eval()
 
@@ -251,10 +292,6 @@ class Trainer:
             'sum_tn': 0,
         }
 
-        results_momentum = {
-
-        }
-
         diff_list = []
         num_tracks_diff_list = {
             0: 0,
@@ -267,6 +304,13 @@ class Trainer:
         }
 
         batch_loss = None
+
+        if cfg['task'] == 'link':
+            metrics['valid_y_pred'] = np.empty((0, 2))
+            metrics['valid_y_true'] = np.empty(0)
+            metrics['valid_y_weight'] = np.empty(0)
+        if cfg['task'] == 'momentum':
+            metrics['valid_p_diff'] = np.empty(0)
 
         if large_loader is not None:
             self.logger.debug('Running validation on large loader with size %i', len(large_loader))
@@ -284,7 +328,7 @@ class Trainer:
                 y_pred = batch_out
                 batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
 
-                self.eval_link(y_pred, batch.y, results_link, weight=batch.w)
+                self.eval_link(y_pred, batch.y, results_link, weight=batch.w, metrics=metrics)
 
                 if cfg['num_track_predict']:
                     # # DBSCAN for graphs
@@ -313,7 +357,7 @@ class Trainer:
                 batch_loss = self.loss_func_p(p_pred, p_truth)
                 del con_mask
 
-                self.eval_momentum(p_pred, p_truth, diff_list)
+                self.eval_momentum(p_pred, p_truth, diff_list, metrics=metrics)
 
             if batch_loss is not None:
                 sum_loss += batch_loss.item()
@@ -364,14 +408,18 @@ class Trainer:
         # print(f"Contains Inf values: {has_inf.item()}")
 
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
-        self.logger.info('  Validation loss: %.3f' % summary['valid_loss'])
+        self.logger.debug('  Validation loss: %.3f' % summary['valid_loss'])
+
+        metrics['valid_loss'] = sum_loss
+        metrics['valid_batches'] = n_batches
 
         return summary
 
-    def eval_link(self, y_pred, y_true, results, weight=None):
+    @timing_decorator
+    def eval_link(self, y_pred, y_true, results, weight=None, metrics=None):
         # Count number of correct predictions
-        batch_pred = torch.sigmoid(y_pred)
-        batch_pred = batch_pred > self.acc_threshold
+        y_sigm = torch.sigmoid(y_pred)
+        batch_pred = y_sigm > self.acc_threshold
         truth_label = y_true > self.acc_threshold
 
         matches = (batch_pred == truth_label)
@@ -385,7 +433,16 @@ class Trainer:
         results['sum_tn'] += ((batch_pred == 0) & (truth_label == 0)).float().mul(weight).sum().item()
         results['sum_fn'] += ((batch_pred == 0) & (truth_label == 1)).float().mul(weight).sum().item()
 
-    def eval_momentum(self, p_pred, p_truth, diff_list):
+        y_numpy = y_sigm.unsqueeze(-1).detach().cpu().numpy()
+        concatenated = np.concatenate((y_numpy <= self.acc_threshold, y_numpy > self.acc_threshold), axis=1).astype(int)
+
+        metrics['valid_y_pred'] = np.concatenate((metrics['valid_y_pred'], concatenated), axis=0)
+        metrics['valid_y_true'] = np.concatenate((metrics['valid_y_true'], y_true.detach().cpu().numpy()),
+                                                 axis=0).astype(int)
+        metrics['valid_y_weight'] = np.concatenate((metrics['valid_y_weight'], weight.detach().cpu().numpy()), axis=0)
+
+    @timing_decorator
+    def eval_momentum(self, p_pred, p_truth, diff_list, metrics=None):
         p_err = (p_pred - p_truth) / p_truth
 
         # Count the number of NaN values
@@ -400,6 +457,10 @@ class Trainer:
 
         diff_list.append(p_err[finite_mask])
 
+        metrics['valid_p_diff'] = np.concatenate(
+            (metrics['valid_p_diff'], p_err[finite_mask].detach().cpu().numpy()), axis=0
+        )
+
     def add_summary(self, summaries):
         if self.summaries is None:
             self.summaries = summaries
@@ -410,7 +471,7 @@ class Trainer:
         if cfg['output_dir']:
             summary_file = os.path.join(cfg['output_dir'], 'summaries_%i.csv' % self.rank)
             self.summaries.to_csv(summary_file, index=False)
-            self.logger.info(f'[Rank {self.rank}]: Write summary to {summary_file}')
+            self.logger.debug(f'[Rank {self.rank}]: Write summary to {summary_file}')
         pass
 
     def write_checkpoint(self, checkpoint_id):
@@ -431,7 +492,7 @@ class Trainer:
         os.makedirs(checkpoint_dir, exist_ok=True)
         checkpoint_file = 'model_checkpoint_%03i.pth.tar' % checkpoint_id
         torch.save(checkpoint, os.path.join(checkpoint_dir, checkpoint_file))
-        self.logger.info(f'[Rank {self.rank}]: Write checkpoint {checkpoint_id} to {checkpoint_file}')
+        self.logger.debug(f'[Rank {self.rank}]: Write checkpoint {checkpoint_id} to {checkpoint_file}')
 
 
 def get_weight_norm(model, norm_type=2):
