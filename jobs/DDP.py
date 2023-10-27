@@ -118,7 +118,7 @@ def process(rank, world_size, config_path, verbose, record):
     if torch.cuda.is_available():
         model = build_model(rank, distributed=True, existed_model_path=existed_model_path)
         # compile the model
-        model = torch_geometric.compile(model)
+        model = torch_geometric.compile(model, dynamic=True, fullgraph=True)
 
         if rank == 0:
             # All processes should see same parameters as they all start from same

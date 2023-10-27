@@ -100,7 +100,6 @@ class MomNet(nn.Module):
             torch.cat([node_features[start_idx], node_features[end_idx]], dim=1)
         ).squeeze(-1)
 
-
         final_node_features = self.edge_transformer_list(
             x=node_features, edge_index=edge_indices, edge_attr=edge_features
         )
