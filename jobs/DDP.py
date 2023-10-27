@@ -42,9 +42,9 @@ def setup(rank, world_size):
         dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
         device = torch.device("cuda:0")
-    # elif torch.has_mps:
-    #     print("mps is available.")
-    #     device = torch.device("mps")
+    elif torch.has_mps:
+        print("mps is available.")
+        device = torch.device("mps")
     else:
         logger.info("CUDA is not available.")
         device = torch.device("cpu")
