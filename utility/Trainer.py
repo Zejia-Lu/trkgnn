@@ -5,11 +5,7 @@ from itertools import chain
 
 import numpy as np
 import pandas as pd
-import torch
-from torch import nn
-import torch.distributed as dist
-from torch.autograd import grad
-import torch.nn.functional as F
+import sys
 
 import wandb
 
@@ -54,6 +50,10 @@ class Trainer:
         # Initial weights for each task
         self.weights = torch.tensor([1.0, 1.0], device=self.device)
 
+        self.best_loss = sys.float_info.max
+        self.best_model_path = None
+        self.best_model_artifact = None
+
     def y_loss(self, y_pred, y_true, weight=None):
         loss = self.loss_func_y(y_pred, y_true, weight=weight)
         return loss
@@ -85,8 +85,6 @@ class Trainer:
 
             # Train on this epoch
             self.process_epoch(epoch, world_size)
-            if self.rank == 0:
-                self.write_checkpoint(epoch)
             self.lr_scheduler.step()
 
             self.logger.info(
@@ -96,6 +94,9 @@ class Trainer:
         self.save_summary()
         # if self.output_dir is not None and self.rank == 0:
         #     self.write_checkpoint(checkpoint_id=epoch)
+
+        self.best_model_artifact.add_file(self.best_model_path)
+        wandb.log_artifact(self.best_model_artifact)
 
     @timing_decorator
     def process_epoch(self, epoch, world_size):
@@ -160,6 +161,7 @@ class Trainer:
         epoch_metrics['valid_loss'] = epoch_metrics['valid_loss'] / epoch_metrics['valid_batches']
 
         if cfg['task'] == 'link':
+            epoch_metrics['valid_y_acc'] = epoch_metrics['valid_y_correct'] / epoch_metrics['valid_y_sum']
             epoch_metrics['roc'] = roc_curve(
                 y_true=epoch_metrics['valid_y_true'],
                 y_probas=epoch_metrics['valid_y_pred'],
@@ -172,17 +174,25 @@ class Trainer:
                 sample_weights=epoch_metrics['valid_y_weight'],
                 labels=['fake', 'truth'],
             )
-
+            del epoch_metrics['valid_y_correct'], epoch_metrics['valid_y_sum']
             del epoch_metrics['valid_y_true'], epoch_metrics['valid_y_pred'], epoch_metrics['valid_y_weight']
 
         if cfg['task'] == 'momentum':
             epoch_metrics['valid_momentum'] = wandb.Histogram(epoch_metrics['valid_p_diff'], num_bins=25)
-
+            epoch_metrics['valid_momentum_mean'] = epoch_metrics['valid_p_diff'].mean()
+            epoch_metrics['valid_momentum_std'] = epoch_metrics['valid_p_diff'].std()
             del epoch_metrics['valid_p_diff']
 
         del epoch_metrics['train_batches'], epoch_metrics['valid_batches']
 
         wandb.log(epoch_metrics)
+
+        if self.rank == 0:
+            checkpoint_file = self.write_checkpoint(epoch)
+
+            if epoch_metrics['valid_loss'] < self.best_loss:
+                self.best_loss = epoch_metrics['valid_loss']
+                self.best_model_path = checkpoint_file
 
         self.logger.info(f"Epoch {epoch} finished")
 
@@ -310,6 +320,8 @@ class Trainer:
             metrics['valid_y_pred'] = np.empty((0, 2))
             metrics['valid_y_true'] = np.empty(0)
             metrics['valid_y_weight'] = np.empty(0)
+            metrics['valid_y_correct'] = 0
+            metrics['valid_y_sum'] = 0
         if cfg['task'] == 'momentum':
             metrics['valid_p_diff'] = np.empty(0)
 
@@ -441,6 +453,8 @@ class Trainer:
         metrics['valid_y_true'] = np.concatenate((metrics['valid_y_true'], y_true.detach().cpu().numpy()),
                                                  axis=0).astype(int)
         metrics['valid_y_weight'] = np.concatenate((metrics['valid_y_weight'], weight.detach().cpu().numpy()), axis=0)
+        metrics['valid_y_correct'] = results['sum_correct']
+        metrics['valid_y_sum'] = results['sum_total']
 
     @timing_decorator
     def eval_momentum(self, p_pred, p_truth, diff_list, metrics=None):
@@ -492,8 +506,11 @@ class Trainer:
         checkpoint_dir = os.path.join(cfg['output_dir'], 'model.checkpoints')
         os.makedirs(checkpoint_dir, exist_ok=True)
         checkpoint_file = 'model_checkpoint_%03i.pth.tar' % checkpoint_id
-        torch.save(checkpoint, os.path.join(checkpoint_dir, checkpoint_file))
+        checkpoint_save_dir = os.path.join(checkpoint_dir, checkpoint_file)
+        torch.save(checkpoint, checkpoint_save_dir)
         self.logger.debug(f'[Rank {self.rank}]: Write checkpoint {checkpoint_id} to {checkpoint_file}')
+
+        return checkpoint_save_dir
 
 
 def get_weight_norm(model, norm_type=2):

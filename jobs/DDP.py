@@ -1,6 +1,8 @@
 import logging
 import os
 import pathlib
+from datetime import datetime
+import platform
 
 import pandas as pd
 import torch
@@ -14,7 +16,7 @@ from utility.FunctionTime import timing_decorator, print_accumulated_times
 
 import torch.distributed as dist
 import torch.multiprocessing as mp
-import torch_geometric
+
 
 from visualization.scripts.plotting import read_local_csv, visual_summary_link, visual_summary_momentum
 
@@ -100,17 +102,23 @@ def process(rank, world_size, config_path, verbose, record):
 
     wandb.login(key="0d27159d2932514bfafad627aaee6c6a9a0ffc8d")
 
+    c = datetime.now()
+    current_time = c.strftime('%m/%d/%Y-%H:%M:%S')
+
     wandb.init(
         project=f"TrkGNN_DDP_{cfg['task']}",
-        group=pathlib.PurePath(cfg['output_dir']).name,
-        job_type="train",
+        group=f"{pathlib.PurePath(cfg['output_dir']).name}@{current_time}",
         name=f"DDP_{rank}",
+        job_type=f"{platform.node()}",
         # resume="auto",
         config=cfg,
         mode="online" if record else "disabled",
+        dir=os.path.abspath(cfg['output_dir'])
     )
     # define a metric we are interested in the minimum of
     wandb.define_metric("valid_loss", summary="min")
+    # define artifact
+    artifact = wandb.Artifact("best_model", type="model")
 
     # check if the model and summary log exists, if so, load it
     existed_model_path, summary_log = load_model_summary()
@@ -171,6 +179,7 @@ def process(rank, world_size, config_path, verbose, record):
     )
 
     trainer.summaries = summary_log
+    trainer.best_model_artifact = artifact
 
     # wandb.watch(
     #     trainer.model,
