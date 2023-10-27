@@ -222,10 +222,6 @@ class Trainer:
                 batch_loss = self.loss_func_p(p_pred, p_truth)
                 del con_mask
 
-                print("p_truth: ", p_truth)
-                print("p_pred: ", p_pred)
-                print("batch_loss: ", batch_loss)
-
                 batch_loss.backward()
 
             if batch_loss is not None:

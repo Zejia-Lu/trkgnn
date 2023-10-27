@@ -165,12 +165,12 @@ def process(rank, world_size, config_path, verbose):
 
     trainer.summaries = summary_log
 
-    wandb.watch(
-        trainer.model,
-        criterion=trainer.loss_func_y if cfg['task'] == 'link' else trainer.loss_func_p,
-        log='all',
-        log_freq=1,
-    )
+    # wandb.watch(
+    #     trainer.model,
+    #     criterion=trainer.loss_func_y if cfg['task'] == 'link' else trainer.loss_func_p,
+    #     log='all',
+    #     log_freq=1,
+    # )
 
     trainer.process(
         n_epochs=cfg['training']['n_epochs'],
