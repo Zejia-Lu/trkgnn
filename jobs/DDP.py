@@ -14,6 +14,7 @@ from utility.FunctionTime import timing_decorator, print_accumulated_times
 
 import torch.distributed as dist
 import torch.multiprocessing as mp
+import torch_geometric
 
 from visualization.scripts.plotting import read_local_csv, visual_summary_link, visual_summary_momentum
 
@@ -42,9 +43,9 @@ def setup(rank, world_size):
         dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
         device = torch.device("cuda:0")
-    elif torch.has_mps:
-        print("mps is available.")
-        device = torch.device("mps")
+    # elif torch.has_mps:
+    #     print("mps is available.")
+    #     device = torch.device("mps")
     else:
         logger.info("CUDA is not available.")
         device = torch.device("cpu")
@@ -115,6 +116,9 @@ def process(rank, world_size, config_path, verbose):
     # Build model
     if torch.cuda.is_available():
         model = build_model(rank, distributed=True, existed_model_path=existed_model_path)
+        # compile the model
+        model = torch_geometric.compile(model)
+
         if rank == 0:
             # All processes should see same parameters as they all start from same
             # random parameters and gradients are synchronized in backward passes.
