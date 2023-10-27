@@ -89,7 +89,7 @@ def load_model_summary():
 
 
 @timing_decorator
-def process(rank, world_size, config_path, verbose):
+def process(rank, world_size, config_path, verbose, record):
     load_config(config_path)
     config_logging(verbose, output_dir=cfg['output_dir'], rank=rank)
 
@@ -105,6 +105,7 @@ def process(rank, world_size, config_path, verbose):
         name=f"DDP_{rank}",
         # resume="auto",
         config=cfg,
+        mode="online" if record else "disabled",
     )
     # define a metric we are interested in the minimum of
     wandb.define_metric("valid_loss", summary="min")
@@ -211,7 +212,7 @@ def process(rank, world_size, config_path, verbose):
     wandb.finish()
 
 
-def parallel_process(config_path, world_size, verbose):
+def parallel_process(config_path, world_size, verbose, record=False):
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "29500"
     if verbose:
@@ -219,7 +220,7 @@ def parallel_process(config_path, world_size, verbose):
 
     mp.spawn(
         process,
-        args=(world_size, config_path, verbose),
+        args=(world_size, config_path, verbose, record),
         nprocs=world_size,
         join=True
     )

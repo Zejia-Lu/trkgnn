@@ -14,7 +14,7 @@ def main(arg):
         quick_test()
 
     if arg.command == 'DDP':
-        parallel_process(arg.config, args.world_size, args.verbose)
+        parallel_process(arg.config, args.world_size, args.verbose, record=args.record)
 
     if arg.command == 'apply':
         load_config(args.config)
@@ -56,6 +56,7 @@ if __name__ == '__main__':
     DDP.add_argument('config', default='config.yaml', type=str, help="the config file")
     DDP.add_argument('-w', '--world_size', type=int, default=1)
     DDP.add_argument('-v', '--verbose', action='store_true')
+    DDP.add_argument('-r', '--record', action='store_true', help="record details using wandb")
 
     # parser for evaluation/application
     apply_new = subparsers.add_parser('apply', help='apply the link model to the dataset')
