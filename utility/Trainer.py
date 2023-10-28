@@ -14,6 +14,8 @@ from utility.Control import cfg
 from utility.FunctionTime import timing_decorator
 from utility.DataLoader import get_data_loaders
 from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info, cluster_graphs
+from utility.EpochMetrics import EpochMetrics
+
 from visualization.scripts.wandb_plots import roc_curve, pr_curve
 
 import torch
@@ -112,8 +114,8 @@ class Trainer:
             rank=self.rank,
             n_ranks=world_size,
         )
-        epoch_metrics = dict()
-        epoch_metrics['epoch'] = epoch
+
+        epoch_metrics = EpochMetrics(epoch=epoch, task_type=cfg['task'])
 
         itr = 0
         while True:
@@ -159,47 +161,22 @@ class Trainer:
             except StopIteration:
                 break
 
-        epoch_metrics['train_loss'] = epoch_metrics['train_loss'] / epoch_metrics['train_batches']
-        epoch_metrics['valid_loss'] = epoch_metrics['valid_loss'] / epoch_metrics['valid_batches']
+        # Log epoch metrics
+        epoch_results = epoch_metrics.to_dict()
 
-        if cfg['task'] == 'link':
-            epoch_metrics['valid_y_acc'] = epoch_metrics['valid_y_correct'] / epoch_metrics['valid_y_sum']
-            epoch_metrics['roc'] = roc_curve(
-                y_true=epoch_metrics['valid_y_true'],
-                y_probas=epoch_metrics['valid_y_pred'],
-                sample_weights=epoch_metrics['valid_y_weight'],
-                labels=['fake', 'truth'],
-            )
-            epoch_metrics['pr'] = pr_curve(
-                y_true=epoch_metrics['valid_y_true'],
-                y_probas=epoch_metrics['valid_y_pred'],
-                sample_weights=epoch_metrics['valid_y_weight'],
-                labels=['fake', 'truth'],
-            )
-            del epoch_metrics['valid_y_correct'], epoch_metrics['valid_y_sum']
-            del epoch_metrics['valid_y_true'], epoch_metrics['valid_y_pred'], epoch_metrics['valid_y_weight']
-
-        if cfg['task'] == 'momentum':
-            epoch_metrics['valid_momentum'] = wandb.Histogram(epoch_metrics['valid_p_diff'], num_bins=25)
-            epoch_metrics['valid_momentum_mean'] = epoch_metrics['valid_p_diff'].mean()
-            epoch_metrics['valid_momentum_std'] = epoch_metrics['valid_p_diff'].std()
-            del epoch_metrics['valid_p_diff']
-
-        del epoch_metrics['train_batches'], epoch_metrics['valid_batches']
-
-        wandb.log(epoch_metrics)
+        wandb.log(epoch_results)
 
         if self.rank == 0:
             checkpoint_file = self.write_checkpoint(epoch)
 
-            if epoch_metrics['valid_loss'] < self.best_loss:
-                self.best_loss = epoch_metrics['valid_loss']
+            if epoch_metrics.metrics['valid_loss'] < self.best_loss:
+                self.best_loss = epoch_metrics.metrics['valid_loss']
                 self.best_model_path = checkpoint_file
 
         self.logger.info(f"Epoch {epoch} finished")
 
     @timing_decorator
-    def train_iteration(self, data_loader, large_loader=None, metrics: dict = None):
+    def train_iteration(self, data_loader, large_loader=None, metrics: EpochMetrics = None):
         """Train for one epoch"""
 
         self.model.train()
@@ -281,14 +258,13 @@ class Trainer:
         # self.logger.debug(' Model LR %f l1 %.2f l2 %.2f', summary['lr'], summary['l1'], summary['l2'])
         self.logger.debug('  Training loss: %.3f', summary['train_loss'])
 
-        metrics['train_loss'] = sum_loss
-        metrics['train_batches'] = n_batches
+        metrics.update_loss(loss=sum_loss, batch_size=n_batches, stage='train')
 
         return summary
 
     @timing_decorator
     @torch.no_grad()
-    def valid_iteration(self, data_loader, large_loader=None, metrics: dict = None):
+    def valid_iteration(self, data_loader, large_loader=None, metrics: EpochMetrics = None):
         """"Evaluate the model"""
         self.model.eval()
 
@@ -317,15 +293,6 @@ class Trainer:
         }
 
         batch_loss = None
-
-        if cfg['task'] == 'link':
-            metrics['valid_y_pred'] = np.empty((0, 2))
-            metrics['valid_y_true'] = np.empty(0)
-            metrics['valid_y_weight'] = np.empty(0)
-            metrics['valid_y_correct'] = 0
-            metrics['valid_y_sum'] = 0
-        if cfg['task'] == 'momentum':
-            metrics['valid_p_diff'] = np.empty(0)
 
         if large_loader is not None:
             self.logger.debug('Running validation on large loader with size %i', len(large_loader))
@@ -425,19 +392,18 @@ class Trainer:
         self.logger.debug(' Processed %i samples in %i batches', len(data_loader.sampler), n_batches)
         self.logger.debug('  Validation loss: %.3f' % summary['valid_loss'])
 
-        metrics['valid_loss'] = sum_loss
-        metrics['valid_batches'] = n_batches
+        metrics.update_loss(loss=sum_loss, batch_size=n_batches, stage='valid')
 
         return summary
 
     @timing_decorator
-    def eval_link(self, y_pred, y_true, results, weight=None, metrics=None):
+    def eval_link(self, y_pred, y_true, results, weight=None, metrics: EpochMetrics = None):
         # Count number of correct predictions
         y_sigm = torch.sigmoid(y_pred)
         batch_pred = y_sigm > self.acc_threshold
         truth_label = y_true > self.acc_threshold
-
         matches = (batch_pred == truth_label)
+
         results['sum_correct'] += matches.float().mul(weight).sum().item()
         results['sum_total'] += weight.sum().item()
         self.logger.debug('correct: %i, total: %i', results['sum_correct'], results['sum_total'])
@@ -448,18 +414,12 @@ class Trainer:
         results['sum_tn'] += ((batch_pred == 0) & (truth_label == 0)).float().mul(weight).sum().item()
         results['sum_fn'] += ((batch_pred == 0) & (truth_label == 1)).float().mul(weight).sum().item()
 
-        y_numpy = y_sigm.unsqueeze(-1).detach().cpu().numpy()
-        concatenated = np.concatenate((y_numpy <= self.acc_threshold, y_numpy > self.acc_threshold), axis=1).astype(int)
+        y_numpy = y_sigm.detach().cpu().numpy()
 
-        metrics['valid_y_pred'] = np.concatenate((metrics['valid_y_pred'], concatenated), axis=0)
-        metrics['valid_y_true'] = np.concatenate((metrics['valid_y_true'], y_true.detach().cpu().numpy()),
-                                                 axis=0).astype(int)
-        metrics['valid_y_weight'] = np.concatenate((metrics['valid_y_weight'], weight.detach().cpu().numpy()), axis=0)
-        metrics['valid_y_correct'] = results['sum_correct']
-        metrics['valid_y_sum'] = results['sum_total']
+        metrics.update_link(y_pred=batch_pred,y_true=truth_label, y_weight=weight, y_score=y_numpy)
 
     @timing_decorator
-    def eval_momentum(self, p_pred, p_truth, diff_list, metrics=None):
+    def eval_momentum(self, p_pred, p_truth, diff_list, metrics: EpochMetrics = None):
         p_err = (p_pred - p_truth) / p_truth
 
         # Count the number of NaN values
@@ -474,9 +434,7 @@ class Trainer:
 
         diff_list.append(p_err[finite_mask])
 
-        metrics['valid_p_diff'] = np.concatenate(
-            (metrics['valid_p_diff'], p_err[finite_mask].detach().cpu().numpy()), axis=0
-        )
+        metrics.update_momentum(p_diff=p_err[finite_mask])
 
     def add_summary(self, summaries):
         if self.summaries is None:
