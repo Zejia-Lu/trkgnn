@@ -8,7 +8,7 @@ class RelativeHuberLoss(nn.Module):
         self.delta = delta
         self.epsilon = epsilon
 
-    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor):
+    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor, weight: torch.Tensor):
         relative_diff = (y_pred - y_true) / (y_true + self.epsilon)
         abs_relative_diff = torch.abs(relative_diff)
 
@@ -17,4 +17,8 @@ class RelativeHuberLoss(nn.Module):
         small_error_loss = 0.5 * (relative_diff ** 2)
         large_error_loss = self.delta * abs_relative_diff - 0.5 * (self.delta ** 2)
 
-        return torch.where(is_small_error, small_error_loss, large_error_loss).mean()
+        # Apply sample weights
+        loss = torch.where(is_small_error, small_error_loss, large_error_loss)
+        weighted_loss = loss * weight
+
+        return weighted_loss.mean()

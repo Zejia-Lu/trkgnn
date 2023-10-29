@@ -259,3 +259,27 @@ python3 trkgnn/run.py apply apply Tracker_GNN.root -m output/model.checkpoints/m
  root -l -b -q 'trkgnn/extra_script/merge_to_DAna.cpp("tag.root", "rec.root", "dp_ana.root")'
 ```
 7. Do normal analysis using `dp_ana.root` file.
+
+## Environments
+```bash
+# create conda environment
+#conda create -p /lustre/collider/zhangyulei/DeepLearning/ml python=3.9
+
+# nivida cuda toolkit
+conda install -c "nvidia/label/cuda-11.7.1" cuda-toolki
+
+# torch
+conda install pytorch==2.0.0 torchvision==0.15.0 torchaudio==2.0.0 pytorch-cuda=11.7 -c pytorch -c nvidia
+conda install pyg pytorch-scatter -c pyg
+pip install torchinfo  
+
+# general
+conda install pandas pyyaml
+pip install uproot seaborn wandb
+
+# plots
+conda install -c plotly plotly
+ 
+ 
+```
+

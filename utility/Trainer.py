@@ -35,7 +35,7 @@ class Trainer:
         self.lr_scheduler = lr_scheduler
         self.loss_func_y = loss_func
         # self.loss_func_p = nn.SmoothL1Loss(beta=0.1)
-        self.loss_func_p = RelativeHuberLoss(delta=1, epsilon=1e-6)
+        self.loss_func_p = RelativeHuberLoss(delta=1, epsilon=1e-3)
         self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
@@ -210,7 +210,7 @@ class Trainer:
                 # p_pred = p_pred_all[con_mask]
                 p_truth = batch.p
                 p_pred = p_pred_all
-                batch_loss = self.loss_func_p(p_pred, p_truth)
+                batch_loss = self.loss_func_p(p_pred, p_truth, weight=batch.w)
                 # del con_mask
 
                 batch_loss.backward()
@@ -335,15 +335,15 @@ class Trainer:
             elif cfg['task'] == 'momentum':
                 p_pred_all, new_y_score = batch_out
                 # calculate momentum prediction
-                # con_mask = (batch.y == 1)
+                con_mask = (batch.y == 1)
                 # p_truth = batch.p[con_mask]
                 # p_pred = p_pred_all[con_mask]
                 p_truth = batch.p
                 p_pred = p_pred_all
-                batch_loss = self.loss_func_p(p_pred, p_truth)
+                batch_loss = self.loss_func_p(p_pred, p_truth, weight=batch.w)
                 # del con_mask
 
-                self.eval_momentum(p_pred, p_truth, diff_list, metrics=metrics)
+                self.eval_momentum(p_pred, p_truth, diff_list, metrics=metrics, mask=con_mask)
 
             if batch_loss is not None:
                 sum_loss += batch_loss.item()
@@ -420,11 +420,11 @@ class Trainer:
 
         y_numpy = y_sigm.detach().cpu().numpy()
 
-        metrics.update_link(y_pred=batch_pred,y_true=truth_label, y_weight=weight, y_score=y_numpy)
+        metrics.update_link(y_pred=batch_pred, y_true=truth_label, y_weight=weight, y_score=y_numpy)
 
     @timing_decorator
-    def eval_momentum(self, p_pred, p_truth, diff_list, metrics: EpochMetrics = None):
-        p_err = (p_pred - p_truth) / p_truth
+    def eval_momentum(self, p_pred, p_truth, diff_list, metrics: EpochMetrics = None, mask=None):
+        p_err = (p_pred - p_truth) / (p_truth + 0.001)
 
         # Count the number of NaN values
         nan_count = torch.isnan(p_err).sum()
@@ -438,7 +438,7 @@ class Trainer:
 
         diff_list.append(p_err[finite_mask])
 
-        metrics.update_momentum(p_diff=p_err[finite_mask])
+        metrics.update_momentum(p_diff=p_err, finite_mask=finite_mask, truth_mask=mask)
 
     def add_summary(self, summaries):
         if self.summaries is None:

@@ -65,6 +65,7 @@ def load_ntuples(
                 run_num=torch.from_numpy(np.array([eve['run_num']])),
                 evt_num=torch.from_numpy(np.array([eve['evt_num']])),
                 edge_attr=torch.from_numpy(edge_features.astype(np.float32)),
+                truth_w=torch.from_numpy(np.array([truth_w]).astype(np.float32)),
             )
             if momentum_predict:
                 p = eve[f'{col}_p'].to_numpy()

@@ -23,7 +23,8 @@ class EpochMetrics:
             self.valid_y_TN = 0
             self.valid_y_FN = 0
         elif task_type == 'momentum':
-            self.valid_p_diff = np.empty(0)
+            self.valid_p_diff_truth = np.empty(0)
+            self.valid_p_diff_fake = np.empty(0)
 
     def update_loss(self, loss: float, batch_size: int, stage: str = 'train'):
         self.metrics[f'{stage}_loss'] += loss
@@ -43,8 +44,12 @@ class EpochMetrics:
         self.valid_y_TN += ((y_pred == 0) & (y_true == 0)).float().mul(y_weight).sum().item()
         self.valid_y_FN += ((y_pred == 0) & (y_true == 1)).float().mul(y_weight).sum().item()
 
-    def update_momentum(self, p_diff: torch.Tensor):
-        self.valid_p_diff = np.concatenate((self.valid_p_diff, p_diff.detach().cpu().numpy()), axis=0)
+    def update_momentum(self, p_diff: torch.Tensor, finite_mask: torch.Tensor, truth_mask: torch.Tensor):
+        truth = p_diff[truth_mask & finite_mask]
+        fake = p_diff[~truth_mask & finite_mask]
+
+        self.valid_p_diff_truth = np.concatenate((self.valid_p_diff_truth, truth.detach().cpu().numpy()), axis=0)
+        self.valid_p_diff_fake = np.concatenate((self.valid_p_diff_fake, fake.detach().cpu().numpy()), axis=0)
 
     def to_dict(self):
 
@@ -67,7 +72,10 @@ class EpochMetrics:
             )
 
         if self.task_type == 'momentum':
-            self.metrics['valid_p_diff_mean'] = np.mean(self.valid_p_diff)
-            self.metrics['valid_p_diff_std'] = np.std(self.valid_p_diff)
+            self.metrics['valid_p_diff_truth_mean'] = np.mean(self.valid_p_diff_truth)
+            self.metrics['valid_p_diff_truth_std'] = np.std(self.valid_p_diff_truth)
+
+            self.metrics['valid_p_diff_fake_mean'] = np.mean(self.valid_p_diff_fake)
+            self.metrics['valid_p_diff_fake_std'] = np.std(self.valid_p_diff_fake)
 
         return self.metrics
