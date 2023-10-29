@@ -35,7 +35,7 @@ class Trainer:
         self.lr_scheduler = lr_scheduler
         self.loss_func_y = loss_func
         # self.loss_func_p = nn.SmoothL1Loss(beta=0.1)
-        self.loss_func_p = RelativeHuberLoss(delta=1, epsilon=1e-3)
+        self.loss_func_p = RelativeHuberLoss(delta=1, epsilon=1e-6)
         self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
