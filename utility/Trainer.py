@@ -205,11 +205,13 @@ class Trainer:
             elif cfg['task'] == 'momentum':
                 p_pred_all, new_y_score = batch_out
                 # calculate momentum prediction
-                con_mask = (batch.y == 1)
-                p_truth = batch.p[con_mask]
-                p_pred = p_pred_all[con_mask]
+                # con_mask = (batch.y == 1)
+                # p_truth = batch.p[con_mask]
+                # p_pred = p_pred_all[con_mask]
+                p_truth = batch.p
+                p_pred = p_pred_all
                 batch_loss = self.loss_func_p(p_pred, p_truth)
-                del con_mask
+                # del con_mask
 
                 batch_loss.backward()
 
