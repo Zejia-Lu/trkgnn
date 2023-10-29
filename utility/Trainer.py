@@ -424,7 +424,10 @@ class Trainer:
 
     @timing_decorator
     def eval_momentum(self, p_pred, p_truth, diff_list, metrics: EpochMetrics = None, mask=None):
-        p_err = (p_pred - p_truth) / (p_truth + 0.001)
+        eps = 1e-6
+
+        # Conditional computation
+        p_err = torch.where(torch.abs(p_truth) > eps, (p_pred - p_truth) / (p_truth + eps), torch.abs(p_pred - p_truth))
 
         # Count the number of NaN values
         nan_count = torch.isnan(p_err).sum()
