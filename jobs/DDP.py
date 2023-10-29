@@ -113,7 +113,8 @@ def process(rank, world_size, config_path, verbose, record):
         # resume="auto",
         config=cfg,
         mode="online" if record else "disabled",
-        dir=os.path.abspath(cfg['output_dir'])
+        dir=os.path.abspath(cfg['output_dir']),
+        notes=cfg['notes'],
     )
     # define a metric we are interested in the minimum of
     wandb.define_metric("valid_loss", summary="min")

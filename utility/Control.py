@@ -19,6 +19,7 @@ def load_config(file_str: str) -> None:
         cfg.update(yaml.safe_load(f))
 
         # default value setting
+        set_default(cfg, 'notes', "Empty comment.")
         set_default(cfg, 'num_track_predict', True)
         set_default(cfg, 'edge_features', False)
         set_default(cfg, 'momentum_predict', False)
