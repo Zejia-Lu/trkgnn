@@ -100,15 +100,15 @@ class MomNet(nn.Module):
             torch.cat([node_features[start_idx], node_features[end_idx]], dim=1)
         ).squeeze(-1)
 
-        final_node_features = self.edge_transformer_list(
-            x=node_features, edge_index=edge_indices, edge_attr=edge_features
-        )
-        # Compute final edge scores; use original edge directions only
-        edge_scores = self.edge_classifier(
-            torch.cat([final_node_features[start_idx], final_node_features[end_idx]], dim=1)
-        ).squeeze(-1)
+        # final_node_features = self.edge_transformer_list(
+        #     x=node_features, edge_index=edge_indices, edge_attr=edge_features
+        # )
+        # # Compute final edge scores; use original edge directions only
+        # edge_scores = self.edge_classifier(
+        #     torch.cat([final_node_features[start_idx], final_node_features[end_idx]], dim=1)
+        # ).squeeze(-1)
 
-        return momentum_change, edge_scores
+        return momentum_change, None, #edge_scores
 
 
 def build_model(**kwargs):

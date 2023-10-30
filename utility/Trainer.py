@@ -16,8 +16,6 @@ from utility.DataLoader import get_data_loaders
 from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info, cluster_graphs
 from utility.EpochMetrics import EpochMetrics
 
-from visualization.scripts.wandb_plots import roc_curve, pr_curve
-
 import torch
 
 
@@ -35,7 +33,7 @@ class Trainer:
         self.lr_scheduler = lr_scheduler
         self.loss_func_y = loss_func
         # self.loss_func_p = nn.SmoothL1Loss(beta=0.1)
-        self.loss_func_p = RelativeHuberLoss(delta=1, epsilon=1e-6)
+        self.loss_func_p = RelativeHuberLoss(delta=1.0, epsilon=1e-6)
         self.device = device if torch.cuda.is_available() else cfg['device']
         self.summaries = None
         self.distributed = distributed
@@ -427,7 +425,7 @@ class Trainer:
         eps = 1e-6
 
         # Conditional computation
-        p_err = torch.where(torch.abs(p_truth) > eps, (p_pred - p_truth) / (p_truth + eps), torch.abs(p_pred - p_truth))
+        p_err = torch.where(torch.abs(p_truth) > eps, (p_pred - p_truth) / (p_truth + eps), (p_pred - p_truth))
 
         # Count the number of NaN values
         nan_count = torch.isnan(p_err).sum()
