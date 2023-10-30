@@ -17,7 +17,6 @@ from utility.FunctionTime import timing_decorator, print_accumulated_times
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
-
 from visualization.scripts.plotting import read_local_csv, visual_summary_link, visual_summary_momentum
 
 
@@ -91,7 +90,7 @@ def load_model_summary():
 
 
 @timing_decorator
-def process(rank, world_size, config_path, verbose, record):
+def process(rank, world_size, config_path, verbose, record, current_time):
     load_config(config_path)
     config_logging(verbose, output_dir=cfg['output_dir'], rank=rank)
 
@@ -101,9 +100,6 @@ def process(rank, world_size, config_path, verbose, record):
     setup(rank, world_size)
 
     wandb.login(key="0d27159d2932514bfafad627aaee6c6a9a0ffc8d")
-
-    c = datetime.now()
-    current_time = c.strftime('%m/%d/%Y-%H:%M:%S')
 
     wandb.init(
         project=f"TrkGNN_DDP_{cfg['task']}",
@@ -230,9 +226,12 @@ def parallel_process(config_path, world_size, verbose, record=False):
     if verbose:
         os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
 
+    c = datetime.now()
+    current_time = c.strftime('%m/%d/%Y-%H:%M')
+
     mp.spawn(
         process,
-        args=(world_size, config_path, verbose, record),
+        args=(world_size, config_path, verbose, record, current_time),
         nprocs=world_size,
         join=True
     )
