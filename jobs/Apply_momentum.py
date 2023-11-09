@@ -159,7 +159,6 @@ def cluster(gr: torch_geometric.data.Data, threshold: float = 0.5):
     def bfs_for_multiple_starts_with_layers(data, start_nodes_, layers):
         paths_from_start = defaultdict(list)
         queue = deque([(start_node, [start_node]) for start_node in start_nodes_])  # (current_node, path)
-        last_layer = layers.max().item()
 
         edge_index = data.edge_index.cpu().numpy()
 
