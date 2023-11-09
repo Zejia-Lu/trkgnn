@@ -41,8 +41,9 @@ class MomNet(nn.Module):
             output_activation=None
         )
 
-        self.edge_transformer_list = TransformerConv(hidden_dim, int(hidden_dim / heads), heads=heads,
-                                                     edge_dim=hidden_dim)
+        self.edge_transformer_list = TransformerConv(
+            hidden_dim, int(hidden_dim / heads), heads=heads, edge_dim=hidden_dim
+        )
         # The edge classifier computes final edge scores
         self.edge_classifier = make_mlp(
             input_size=2 * hidden_dim,
@@ -100,6 +101,8 @@ class MomNet(nn.Module):
             torch.cat([node_features[start_idx], node_features[end_idx]], dim=1)
         ).squeeze(-1)
 
+        return momentum_change, data.edge_attr[:,-1], #edge_scores
+
         # final_node_features = self.edge_transformer_list(
         #     x=node_features, edge_index=edge_indices, edge_attr=edge_features
         # )
@@ -107,8 +110,8 @@ class MomNet(nn.Module):
         # edge_scores = self.edge_classifier(
         #     torch.cat([final_node_features[start_idx], final_node_features[end_idx]], dim=1)
         # ).squeeze(-1)
-
-        return momentum_change, None, #edge_scores
+        #
+        # return momentum_change, edge_scores
 
 
 def build_model(**kwargs):

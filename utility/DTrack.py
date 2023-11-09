@@ -10,11 +10,22 @@ class DTrack:
         self.no_hits = 0
         self.p_i = -1
         self.p_f = -1
+        self.p_avg = -1
         self.vertex_hit = None
         self.end_hit = None
         self.full_track = 0
 
-        self.eps = 2.0 # mm
+        self.eps = 2.0  # mm
+
+    def __repr__(self):
+        return \
+            f"DTrack [{self.no_hits} hits]: {self.p_avg:.4f} E/E0"
+
+    def __str__(self):
+        return \
+            f"DTrack: evt_num={self.evt_num}, run_num={self.run_num}, no_hits={self.no_hits}, " \
+            f"p_i={self.p_i}, p_f={self.p_f}, p_avg={self.p_avg}, " \
+            f"vertex_hit={self.vertex_hit}, end_hit={self.end_hit}"
 
     def from_graph(self, graph: nx.Graph, e0=1.0, tracker_boundary: Tuple[float, float] = None):
         self.no_hits = len(graph.nodes)
