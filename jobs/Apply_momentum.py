@@ -102,11 +102,11 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
 
                     if 'tracking_layers' in cfg['data']:
                         num_batches = 0
-                        for idx, _ in enumerate(batch):
+                        for idx in range(batch.num_graphs):
                             paths = cluster(batch[idx], threshold=cfg['data']['threshold'])
                             analyzed_tracks_list.append(analyze_tracks(batch[idx], paths))
                             num_batches += 1
-                        logger.info(f"Number of graphs: {num_batches} processed in {j}th batch. Length of batch: {len(batch)}")
+                        logger.debug(f"Number of graphs: {num_batches} processed in {j}th batch. Length of batch: {len(batch)}")
 
                     predicted_graph_list += batch.to_data_list()
                     num_graphs += batch.num_graphs
