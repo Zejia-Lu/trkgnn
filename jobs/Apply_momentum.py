@@ -90,6 +90,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
 
                 predicted_graph_list = []
                 analyzed_tracks_list = []
+                num_graphs = 0
                 # Loop over batches
                 for j, batch in enumerate(apply_loader):
                     batch = batch.to(cfg['device'])
@@ -105,9 +106,12 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                             analyzed_tracks_list.append(analyze_tracks(batch[idx], paths))
 
                     predicted_graph_list += batch.to_data_list()
+                    num_graphs += batch.num_graphs
 
                 torch.save(predicted_graph_list, os.path.join(output_graph_dir, f"momentum_{itr}.pt"))
                 torch.save(analyzed_tracks_list, os.path.join(output_graph_dir, f"tracks_{itr}.lt"))
+
+                logger.info(f"Number of graphs: {num_graphs} processed in {itr + 1}th iteration.")
                 itr += 1
             except StopIteration:
                 print("Finish")
