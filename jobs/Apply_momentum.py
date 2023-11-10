@@ -49,7 +49,7 @@ def setup():
 @timing_decorator
 @torch.no_grad()
 def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool = False):
-    config_logging(True, output_dir=output_dir, prefix='apply')
+    config_logging(False, output_dir=output_dir, prefix='apply')
     setup()
     logger = logging.getLogger("Apply.Momentum")
 
