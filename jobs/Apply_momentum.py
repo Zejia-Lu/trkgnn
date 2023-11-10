@@ -101,9 +101,12 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                     batch = batch.to("cpu")
 
                     if 'tracking_layers' in cfg['data']:
+                        num_batches = 0
                         for idx, _ in enumerate(batch):
                             paths = cluster(batch[idx], threshold=cfg['data']['threshold'])
                             analyzed_tracks_list.append(analyze_tracks(batch[idx], paths))
+                            num_batches += 1
+                        logger.info(f"Number of graphs: {num_batches} processed in {j}th batch.")
 
                     predicted_graph_list += batch.to_data_list()
                     num_graphs += batch.num_graphs
