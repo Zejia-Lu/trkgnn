@@ -228,6 +228,7 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list]):
             traj.p_i = sub_edges[0, -1].item()
             traj.p_f = sub_edges[-1, -1].item()
             traj.p_avg = np.mean(sub_edges[:, -1].numpy())
+            traj.p_std = np.std(sub_edges[:, -1].numpy())
 
             traj.vertex_hit = graph.x[path[0], :3].numpy()
             traj.end_hit = graph.x[path[-1], :3].numpy()
