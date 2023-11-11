@@ -248,7 +248,12 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list]):
                     traj.c = -1
                     traj.c_quality = 1
                 else:
-                    traj.c = 0
+                    signs = np.sign(ddx)
+                    counts = np.bincount(signs + 1)
+                    if len(np.unique(counts)) == len(counts):
+                        traj.c = np.argmax(counts) - 1
+                    else:
+                        traj.c = 0
                     traj.c_quality = 0
 
             trajectories.append(traj)
