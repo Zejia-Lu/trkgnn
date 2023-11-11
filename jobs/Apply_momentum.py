@@ -106,7 +106,8 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                             paths = cluster(batch[idx], threshold=cfg['data']['threshold'])
                             analyzed_tracks_list.append(analyze_tracks(batch[idx], paths))
                             num_batches += 1
-                        logger.debug(f"Number of graphs: {num_batches} processed in {j}th batch. Length of batch: {len(batch)}")
+                        logger.debug(
+                            f"Number of graphs: {num_batches} processed in {j}th batch. Length of batch: {len(batch)}")
 
                     predicted_graph_list += batch.to_data_list()
                     num_graphs += batch.num_graphs
@@ -232,6 +233,23 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list]):
 
             traj.vertex_hit = graph.x[path[0], :3].numpy()
             traj.end_hit = graph.x[path[-1], :3].numpy()
+
+            # calculate charge
+            if len(path) < 3:
+                traj.c = 0
+                traj.c_quality = 0
+            else:
+                dx = np.diff(graph.x[path, 0].numpy())
+                ddx = np.diff(dx)
+                if np.all(ddx > 0):
+                    traj.c = 1
+                    traj.c_quality = 1
+                elif np.all(ddx < 0):
+                    traj.c = -1
+                    traj.c_quality = 1
+                else:
+                    traj.c = 0
+                    traj.c_quality = 0
 
             trajectories.append(traj)
 

@@ -12,6 +12,8 @@ class DTrack:
         self.p_f = -1
         self.p_avg = -1
         self.p_std = -1
+        self.c = 0
+        self.c_quality = 0
         self.vertex_hit = None
         self.end_hit = None
         self.full_track = 0
