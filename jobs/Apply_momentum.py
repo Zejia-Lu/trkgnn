@@ -249,6 +249,8 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list]):
                     traj.c_quality = 1
                 else:
                     signs = np.sign(ddx)
+                    # Make sure the signs array is of integer type
+                    signs = signs.astype(np.int64)
                     counts = np.bincount(signs + 1)
                     if len(np.unique(counts)) == len(counts):
                         traj.c = np.argmax(counts) - 1
