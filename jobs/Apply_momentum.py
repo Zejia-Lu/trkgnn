@@ -224,6 +224,7 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list]):
 
             traj.run_num = graph.run_num.item()
             traj.evt_num = graph.evt_num.item()
+            traj.global_num_trk = graph.n.item()
 
             traj.no_hits = len(path)
             traj.p_i = sub_edges[0, -1].item()
@@ -257,6 +258,7 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list]):
                     else:
                         traj.c = 0
                     traj.c_quality = 0
+
 
             trajectories.append(traj)
 

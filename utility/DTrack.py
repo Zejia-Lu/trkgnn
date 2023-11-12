@@ -7,6 +7,7 @@ class DTrack:
     def __init__(self):
         self.evt_num = -1
         self.run_num = -1
+        self.global_num_trk = -1
         self.no_hits = 0
         self.p_i = -1
         self.p_f = -1
@@ -16,6 +17,8 @@ class DTrack:
         self.c_quality = 0
         self.vertex_hit = None
         self.end_hit = None
+        self.p_dir = None
+
         self.full_track = 0
 
         self.eps = 2.0  # mm
