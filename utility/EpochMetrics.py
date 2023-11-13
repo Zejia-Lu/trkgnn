@@ -14,15 +14,15 @@ class EpochMetrics:
         }
 
         self.task_type = task_type
-        if task_type == 'link':
-            self.valid_y_pred = np.empty((0))
+        if task_type in ['link', 'vertex']:
+            self.valid_y_pred = np.empty(0)
             self.valid_y_true = np.empty(0)
             self.valid_y_weight = np.empty(0)
             self.valid_y_TP = 0
             self.valid_y_FP = 0
             self.valid_y_TN = 0
             self.valid_y_FN = 0
-        elif task_type == 'momentum':
+        if task_type in ['momentum', 'vertex']:
             self.valid_p_diff_truth = np.empty(0)
             self.valid_p_diff_fake = np.empty(0)
 
@@ -58,12 +58,22 @@ class EpochMetrics:
 
         del self.metrics['train_batches'], self.metrics['valid_batches']
 
-        if self.task_type == 'link':
+        if self.task_type in ['link', 'vertex']:
             y_correct = self.valid_y_TP + self.valid_y_TN
             y_sum = self.valid_y_TP + self.valid_y_FP + self.valid_y_TN + self.valid_y_FN
             self.metrics['valid_y_acc'] = y_correct / y_sum
-            self.metrics['valid_y_precision'] = self.valid_y_TP / (self.valid_y_TP + self.valid_y_FP)
-            self.metrics['valid_y_recall'] = self.valid_y_TP / (self.valid_y_TP + self.valid_y_FN)
+            # Precision calculation
+            if self.valid_y_TP + self.valid_y_FP > 0:
+                self.metrics['valid_y_precision'] = self.valid_y_TP / (self.valid_y_TP + self.valid_y_FP)
+            else:
+                self.metrics['valid_y_precision'] = 0
+
+            # Recall calculation
+            if self.valid_y_TP + self.valid_y_FN > 0:
+                self.metrics['valid_y_recall'] = self.valid_y_TP / (self.valid_y_TP + self.valid_y_FN)
+            else:
+                self.metrics['valid_y_recall'] = 0
+
 
             self.metrics['valid_y_auc'] = roc_auc_score(
                 y_true=self.valid_y_true,
@@ -71,7 +81,7 @@ class EpochMetrics:
                 sample_weight=self.valid_y_weight,
             )
 
-        if self.task_type == 'momentum':
+        if self.task_type in ['momentum', 'vertex']:
             self.metrics['valid_p_diff_truth_mean'] = np.mean(self.valid_p_diff_truth)
             self.metrics['valid_p_diff_truth_std'] = np.std(self.valid_p_diff_truth)
 

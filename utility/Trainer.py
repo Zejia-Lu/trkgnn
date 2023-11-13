@@ -17,6 +17,7 @@ from utility.EverythingNeeded import get_memory_size_MB, print_gpu_info, cluster
 from utility.EpochMetrics import EpochMetrics
 
 import torch
+from torch.autograd import grad
 
 
 class Trainer:
@@ -60,6 +61,67 @@ class Trainer:
 
     def p_loss(self, p_pred, p_true):
         return self.loss_func_p(p_pred, p_true)
+
+    def grad_norm_loss(self, y_pred, y_true, p_pred, p_true, weight=None, train: bool = True):
+        cls_loss = self.y_loss(y_pred, y_true, weight=weight)
+        reg_loss = self.p_loss(p_pred, p_true)
+
+        losses = torch.stack([cls_loss, reg_loss])
+        total_loss = torch.dot(self.weights, losses)
+
+        if train:
+            self.logger.debug(f'cls_loss: {cls_loss}, reg_loss: {reg_loss}, total: {total_loss}')
+            # Compute gradients for each task
+            grads_y = grad(cls_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+            grads_p = grad(reg_loss, self.model.parameters(), retain_graph=True, allow_unused=True)
+
+            # Compute gradient norms
+            G_y = torch.norm(torch.cat([g.view(-1) for g in grads_y if g is not None]))
+            G_p = torch.norm(torch.cat([g.view(-1) for g in grads_p if g is not None]))
+
+            # Compute gradient norms for each task and, if necessary, initial gradient norms
+            with torch.no_grad():
+                G = torch.tensor([G_y, G_p], device=self.device)
+                if self.G_0 is None:
+                    self.G_0 = G.clone().detach()
+
+                self.logger.debug(f'G_y: {G_y}, G_p: {G_p}, G_0: {self.G_0}')
+
+                # Compute the relative losses
+                L_hat = G / self.G_0
+                # Compute the mean relative loss
+                mean_L_hat = torch.mean(L_hat)
+
+                self.logger.debug(f'L_hat: {L_hat}, mean_L_hat: {mean_L_hat}')
+
+                # Compute the weight update factors
+                factors = (1 + self.alpha * (L_hat / mean_L_hat - 1))
+                # Log if any factors are outside the clamp range
+                if (factors < 0).any() or (factors > 10).any():
+                    self.logger.debug(f'Clamping factors: {factors}')
+                # Apply the clamp to the factors
+                factors = factors.clamp(min=0, max=10)
+                # Update the weights
+                self.weights *= factors
+                if self.weights[0] < self.min_factor:
+                    self.weights[0] = self.min_factor
+                if self.weights[1] < self.min_factor:
+                    self.weights[1] = self.min_factor
+                # Normalize the weights
+                self.weights /= self.weights.sum()
+
+                self.logger.debug(f'factor: {1 + self.alpha * (L_hat / mean_L_hat - 1)}')
+                self.logger.debug(f'weights: {self.weights}')
+
+            # Apply GradNorm weights and accumulated gradients
+            for i, p in enumerate(self.model.parameters()):
+                if p.grad is not None:
+                    p.grad = (self.weights[0] * grads_y[i] if grads_y[i] is not None else 0) + (
+                        self.weights[1] * grads_p[i] if grads_p[i] is not None else 0)
+
+            (cls_loss * self.weights[0] + reg_loss * self.weights[1]).backward()
+
+        return total_loss
 
     @timing_decorator
     def process(self, n_epochs, n_total_epochs, world_size):
@@ -212,6 +274,11 @@ class Trainer:
                 # del con_mask
 
                 batch_loss.backward()
+            elif cfg['task'] == 'vertex':
+                y_pred, z_pred = batch_out
+                batch_loss = self.grad_norm_loss(y_pred, batch.y, z_pred, batch.z, weight=None, train=True)
+                # backward already in loss function
+                # batch_loss.backward()
 
             if batch_loss is not None:
                 self.optimizer.step()
@@ -343,6 +410,19 @@ class Trainer:
 
                 self.eval_momentum(p_pred, p_truth, diff_list, metrics=metrics, mask=con_mask)
 
+            elif cfg['task'] == 'vertex':
+                y_pred, z_pred_all = batch_out
+                con_mask = (batch.y == 1)
+                z_truth = batch.z[con_mask]
+                z_pred = z_pred_all[con_mask]
+
+                batch_loss = self.grad_norm_loss(y_pred, batch.y, z_pred, z_truth, weight=None, train=False)
+
+                # evaluate classification result
+                self.eval_link(y_pred, batch.y, results_link, weight=None, metrics=metrics)
+                # evaluate regression result
+                self.eval_momentum(z_pred_all, batch.z, diff_list, metrics=metrics, mask=con_mask)
+
             if batch_loss is not None:
                 sum_loss += batch_loss.item()
 
@@ -400,6 +480,10 @@ class Trainer:
 
     @timing_decorator
     def eval_link(self, y_pred, y_true, results, weight=None, metrics: EpochMetrics = None):
+        # Initialize weight to ones if None
+        if weight is None:
+            weight = torch.ones_like(y_pred)
+
         # Count number of correct predictions
         y_sigm = torch.sigmoid(y_pred)
         batch_pred = y_sigm > self.acc_threshold

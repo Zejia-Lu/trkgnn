@@ -212,8 +212,8 @@ def process(rank, world_size, config_path, verbose, record, current_time):
         fig = visual_summary_link(df, t)
     elif cfg['task'] == 'momentum':
         fig = visual_summary_momentum(df, t)
-    fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.png'))
-    fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.pdf'))
+    if fig: fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.png'))
+    if fig: fig.write_image(os.path.join(cfg['plot_path'], 'training_summary.pdf'))
 
     save_config(cfg)
 

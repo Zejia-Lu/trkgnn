@@ -8,7 +8,9 @@ class RelativeHuberLoss(nn.Module):
         self.delta = delta
         self.epsilon = epsilon
 
-    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor, weight: torch.Tensor):
+    def forward(self, y_pred: torch.Tensor, y_true: torch.Tensor, weight: torch.Tensor = None):
+        if weight is None:
+            weight = torch.ones_like(y_true)
 
         y_zero = torch.abs(y_true) < self.epsilon
 

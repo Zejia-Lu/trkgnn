@@ -53,8 +53,8 @@ def load_ntuples(
             graph = torch_geometric.data.Data(
                 x=torch.from_numpy(node.astype(np.float32)),
                 edge_index=torch.from_numpy(edge_index.astype(np.int64)),
-                y=torch.from_numpy(np.array([y])),
-                z=torch.from_numpy(np.array([z])),
+                y=torch.from_numpy(np.array([y]).astype(np.float32)),
+                z=torch.from_numpy(np.array([z]).astype(np.float32)),
                 i=torch.from_numpy(np.array([report.start + index])),
                 edge_attr=torch.from_numpy(edge_features.astype(np.float32)),
             )
