@@ -283,6 +283,8 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list], vtx_mode
                 edge_attr=torch.cat((traj_graphs['edge_attr'][x1], traj_graphs['edge_attr'][x2]), dim=0),
             )
 
+            gr.to(cfg['device'])
+
             cls, reg = vtx_model(gr)
 
             v_pred = torch.sigmoid(cls)
