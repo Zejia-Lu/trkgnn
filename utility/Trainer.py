@@ -59,12 +59,12 @@ class Trainer:
         loss = self.loss_func_y(y_pred, y_true, weight=weight)
         return loss
 
-    def p_loss(self, p_pred, p_true):
-        return self.loss_func_p(p_pred, p_true)
+    def p_loss(self, p_pred, p_true, absolute: bool = False):
+        return self.loss_func_p(p_pred, p_true, absolute=absolute)
 
     def grad_norm_loss(self, y_pred, y_true, p_pred, p_true, weight=None, train: bool = True):
         cls_loss = self.y_loss(y_pred, y_true, weight=weight)
-        reg_loss = self.p_loss(p_pred, p_true)
+        reg_loss = self.p_loss(p_pred, p_true, absolute=True)
 
         losses = torch.stack([cls_loss, reg_loss])
         total_loss = torch.dot(self.weights, losses)
@@ -421,7 +421,7 @@ class Trainer:
                 # evaluate classification result
                 self.eval_link(y_pred, batch.y, results_link, weight=None, metrics=metrics)
                 # evaluate regression result
-                self.eval_momentum(z_pred_all, batch.z, diff_list, metrics=metrics, mask=con_mask)
+                self.eval_momentum(z_pred_all, batch.z, diff_list, metrics=metrics, mask=con_mask, absolute=True)
 
             if batch_loss is not None:
                 sum_loss += batch_loss.item()
@@ -505,11 +505,14 @@ class Trainer:
         metrics.update_link(y_pred=batch_pred, y_true=truth_label, y_weight=weight, y_score=y_numpy)
 
     @timing_decorator
-    def eval_momentum(self, p_pred, p_truth, diff_list, metrics: EpochMetrics = None, mask=None):
+    def eval_momentum(self, p_pred, p_truth, diff_list, metrics: EpochMetrics = None, mask=None, absolute: bool = False):
         eps = 1e-6
 
         # Conditional computation
-        p_err = torch.where(torch.abs(p_truth) > eps, (p_pred - p_truth) / (p_truth + eps), (p_pred - p_truth))
+        if absolute:
+            p_err = torch.abs(p_pred - p_truth)
+        else:
+            p_err = torch.where(torch.abs(p_truth) > eps, (p_pred - p_truth) / (p_truth + eps), (p_pred - p_truth))
 
         # Count the number of NaN values
         nan_count = torch.isnan(p_err).sum()
