@@ -1,4 +1,5 @@
 from typing import Tuple
+import numpy as np
 
 import networkx as nx
 
@@ -20,9 +21,9 @@ class DTrack:
         self.p_dir = None
 
         self.track_id = -1
-        self.has_vertex = -1
-        self.vertex_z = -610
-        self.track_2_id = -1
+        self.has_vertex = []
+        self.vertex_z = []
+        self.track_2_id = []
 
         self.full_track = 0
 

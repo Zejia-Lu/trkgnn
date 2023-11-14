@@ -229,6 +229,7 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list], vtx_mode
             #     edge_index=sub_edges_index,
             #     edge_attr=sub_edges[:,[0,1,2,-1]],
             # ))
+
             if vtx_model is not None:
                 traj_graphs['x'].append(graph.x[path])
                 traj_graphs['edge_index'].append(sub_edges_index)
@@ -290,19 +291,13 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list], vtx_mode
             v_pred = torch.sigmoid(cls)
             z_pred = reg
 
-            if v_pred.item() > 0.5:
-                trajectories[x1].has_vertex = 1
-                trajectories[x2].has_vertex = 1
+            trajectories[x1].has_vertex.append(v_pred.item())
+            trajectories[x2].has_vertex.append(v_pred.item())
 
-                trajectories[x1].vertex_z = z_pred.item()
-                trajectories[x2].vertex_z = z_pred.item()
+            trajectories[x1].vertex_z.append(z_pred.item())
+            trajectories[x2].vertex_z.append(z_pred.item())
 
-                trajectories[x1].track_2_id = x2
-                trajectories[x2].track_2_id = x1
-            else:
-                trajectories[x1].has_vertex = 0
-                trajectories[x2].has_vertex = 0
-
-            a = 0
+            trajectories[x1].track_2_id.append(x2)
+            trajectories[x2].track_2_id.append(x1)
 
     return trajectories
