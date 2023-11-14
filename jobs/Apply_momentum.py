@@ -275,7 +275,7 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list], vtx_mode
             trajectories.append(traj)
 
     if vtx_model is not None:
-        for x1, x2 in list(itertools.combinations(range(5), 2)):
+        for x1, x2 in list(itertools.combinations(range(len(trajectories)), 2)):
             s_idx = len(traj_graphs['x'][x1])
             gr = torch_geometric.data.Data(
                 x=torch.cat((traj_graphs['x'][x1], traj_graphs['x'][x2] + s_idx), dim=0),
