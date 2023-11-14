@@ -25,10 +25,17 @@ class EpochMetrics:
         if task_type in ['momentum', 'vertex']:
             self.valid_p_diff_truth = np.empty(0)
             self.valid_p_diff_fake = np.empty(0)
+        if task_type == 'vertex':
+            self.grad_l1 = np.empty(0)
+            self.grad_l2 = np.empty(0)
 
-    def update_loss(self, loss: float, batch_size: int, stage: str = 'train'):
+    def update_loss(self, loss: float, batch_size: int, stage: str = 'train', weights: torch.Tensor = None):
         self.metrics[f'{stage}_loss'] += loss
         self.metrics[f'{stage}_batches'] += batch_size
+
+        if weights is not None:
+            self.grad_l1 = np.concatenate((self.grad_l1, [weights.detach().cpu().numpy()[0]]), axis=0)
+            self.grad_l2 = np.concatenate((self.grad_l2, [weights.detach().cpu().numpy()[1]]), axis=0)
 
     def update_link(
             self,
@@ -87,5 +94,9 @@ class EpochMetrics:
 
             self.metrics['valid_p_diff_fake_mean'] = np.mean(self.valid_p_diff_fake)
             self.metrics['valid_p_diff_fake_std'] = np.std(self.valid_p_diff_fake)
+
+        if self.task_type == 'vertex':
+            self.metrics['grad_l1'] = np.mean(self.grad_l1)
+            self.metrics['grad_l2'] = np.mean(self.grad_l2)
 
         return self.metrics

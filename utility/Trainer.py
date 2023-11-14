@@ -325,7 +325,7 @@ class Trainer:
         # self.logger.debug(' Model LR %f l1 %.2f l2 %.2f', summary['lr'], summary['l1'], summary['l2'])
         self.logger.debug('  Training loss: %.3f', summary['train_loss'])
 
-        metrics.update_loss(loss=sum_loss, batch_size=n_batches, stage='train')
+        metrics.update_loss(loss=sum_loss, batch_size=n_batches, stage='train', weights=self.weights)
 
         return summary
 
