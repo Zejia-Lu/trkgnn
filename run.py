@@ -17,19 +17,19 @@ def main(arg):
         parallel_process(arg.config, args.world_size, args.verbose, record=args.record)
 
     if arg.command == 'apply':
-        load_config(args.config)
+
         predict = None
+        vtx_model = None
         if arg.process == 'link':
             from jobs.Apply_link import predict
         elif arg.process == 'momentum':
             from jobs.Apply_momentum import predict
-        predict(args.input, args.model, args.output, args.truth)
-        print_accumulated_times()
-
-    if arg.command == 'apply_momentum':
-        from jobs.Apply_momentum import predict
-        load_config(arg.config)
-        predict(arg.input, arg.model, arg.output, arg.truth)
+        elif args.process == 'vertex':
+            from jobs.Apply_vertex import load_vertex
+            vtx_model = load_vertex(args.vertex_model, args.vertex_config)
+            from jobs.Apply_momentum import predict
+        load_config(args.config)
+        predict(args.input, args.model, args.output, args.truth, vtx_model)
         print_accumulated_times()
 
     if arg.command == 'dummy':
@@ -71,8 +71,14 @@ if __name__ == '__main__':
     # add argument for saving graphs
     apply_new.add_argument('-t', '--truth', action='store_true', help="use truth edge information")
     apply_new.add_argument(
-        '-p', '--process', required=True, choices=['link', 'momentum'],
+        '-p', '--process', required=True, choices=['link', 'momentum', 'vertex'],
         help="the process type: link or momentum"
+    )
+    apply_new.add_argument(
+        '-v', '--vertex_model', default='model', type=str, help="the vertex model directory (optional)"
+    )
+    apply_new.add_argument(
+        '-x', '--vertex_config', default='model', type=str, help="the vertex model config (optional)"
     )
 
     # parser for dummy test

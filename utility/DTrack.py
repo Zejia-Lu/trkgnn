@@ -19,6 +19,11 @@ class DTrack:
         self.end_hit = None
         self.p_dir = None
 
+        self.track_id = -1
+        self.has_vertex = -1
+        self.vertex_z = -610
+        self.track_2_id = -1
+
         self.full_track = 0
 
         self.eps = 2.0  # mm

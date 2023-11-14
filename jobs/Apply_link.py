@@ -39,7 +39,7 @@ def setup():
 
 @timing_decorator
 @torch.no_grad()
-def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool = False):
+def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool = False, vtx_model=None):
     config_logging(True, output_dir=output_dir, prefix='apply')
     setup()
     logger = logging.getLogger("Apply.Link")

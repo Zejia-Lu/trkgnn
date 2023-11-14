@@ -2,6 +2,7 @@ import gc
 import logging
 import pickle
 import os
+import itertools
 import torch
 import torch_geometric
 import torch_geometric.utils as pyg_utils
@@ -48,7 +49,7 @@ def setup():
 
 @timing_decorator
 @torch.no_grad()
-def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool = False):
+def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool = False, vtx_model=None):
     config_logging(False, output_dir=output_dir, prefix='apply')
     setup()
     logger = logging.getLogger("Apply.Momentum")
@@ -104,7 +105,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                         num_batches = 0
                         for idx in range(batch.num_graphs):
                             paths = cluster(batch[idx], threshold=cfg['data']['threshold'])
-                            analyzed_tracks_list.append(analyze_tracks(batch[idx], paths))
+                            analyzed_tracks_list.append(analyze_tracks(batch[idx], paths, vtx_model=vtx_model))
                             num_batches += 1
                         logger.debug(
                             f"Number of graphs: {num_batches} processed in {j}th batch. Length of batch: {len(batch)}")
@@ -213,18 +214,30 @@ def cluster(gr: torch_geometric.data.Data, threshold: float = 0.5):
 
 
 @timing_decorator
-def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list]):
+def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list], vtx_model=None):
     logger = logging.getLogger("Apply.Momentum.Analyze")
 
     trajectories = []
-    for start_points in paths.keys():
+    traj_graphs = defaultdict(list)
+    for idx, start_points in enumerate(paths.keys()):
         for path in paths[start_points]:
             traj = DTrack()
-            _, sub_edges = subgraph(path, graph.edge_index, graph.edge_attr)
+            sub_edges_index, sub_edges = subgraph(path, graph.edge_index, graph.edge_attr, relabel_nodes=True)
+
+            # traj_graphs.append(torch_geometric.data.Data(
+            #     x=torch.from_numpy(np.array(range(len(path)))),
+            #     edge_index=sub_edges_index,
+            #     edge_attr=sub_edges[:,[0,1,2,-1]],
+            # ))
+            if vtx_model is not None:
+                traj_graphs['x'].append(graph.x[path])
+                traj_graphs['edge_index'].append(sub_edges_index)
+                traj_graphs['edge_attr'].append(sub_edges[:, [0, 1, 2, -1]])
 
             traj.run_num = graph.run_num.item()
             traj.evt_num = graph.evt_num.item()
             traj.global_num_trk = graph.n.item()
+            traj.track_id = idx
 
             traj.no_hits = len(path)
             traj.p_i = sub_edges[0, -1].item()
@@ -259,7 +272,35 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list]):
                         traj.c = 0
                     traj.c_quality = 0
 
-
             trajectories.append(traj)
+
+    if vtx_model is not None:
+        for x1, x2 in list(itertools.combinations(range(5), 2)):
+            s_idx = len(traj_graphs['x'][x1])
+            gr = torch_geometric.data.Data(
+                x=torch.cat((traj_graphs['x'][x1], traj_graphs['x'][x2] + s_idx), dim=0),
+                edge_index=torch.cat((traj_graphs['edge_index'][x1], traj_graphs['edge_index'][x2] + s_idx), dim=1),
+                edge_attr=torch.cat((traj_graphs['edge_attr'][x1], traj_graphs['edge_attr'][x2]), dim=0),
+            )
+
+            cls, reg = vtx_model(gr)
+
+            v_pred = torch.sigmoid(cls)
+            z_pred = reg
+
+            if v_pred.item() > 0.5:
+                trajectories[x1].has_vertex = 1
+                trajectories[x2].has_vertex = 1
+
+                trajectories[x1].vertex_z = z_pred.item()
+                trajectories[x2].vertex_z = z_pred.item()
+
+                trajectories[x1].track_2_id = x2
+                trajectories[x2].track_2_id = x1
+            else:
+                trajectories[x1].has_vertex = 0
+                trajectories[x2].has_vertex = 0
+
+            a = 0
 
     return trajectories
