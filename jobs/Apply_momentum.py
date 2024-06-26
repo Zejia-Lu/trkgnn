@@ -17,7 +17,7 @@ from utility.EverythingNeeded import config_logging, build_model
 from utility.FunctionTime import timing_decorator
 from utility.DTrack import DTrack
 
-from pyvis.network import Network
+# from pyvis.network import Network
 
 
 def setup():

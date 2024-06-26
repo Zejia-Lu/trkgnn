@@ -99,7 +99,7 @@ def process(rank, world_size, config_path, verbose, record, current_time):
     logger.info(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
 
-    wandb.login(key="0d27159d2932514bfafad627aaee6c6a9a0ffc8d")
+    wandb.login(key="17722033571c81d4046c8e88049a5240ea32b54e")
 
     wandb.init(
         project=f"TrkGNN_DDP_{cfg['task']}",

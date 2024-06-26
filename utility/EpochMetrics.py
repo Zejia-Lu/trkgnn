@@ -33,7 +33,7 @@ class EpochMetrics:
         self.metrics[f'{stage}_loss'] += loss
         self.metrics[f'{stage}_batches'] += batch_size
 
-        if weights is not None:
+        if weights is not None and self.task_type == 'vertex':
             self.grad_l1 = np.concatenate((self.grad_l1, [weights.detach().cpu().numpy()[0]]), axis=0)
             self.grad_l2 = np.concatenate((self.grad_l2, [weights.detach().cpu().numpy()[1]]), axis=0)
 
