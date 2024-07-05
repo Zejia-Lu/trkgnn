@@ -41,7 +41,7 @@ def setup():
         device = torch.device("cpu")
 
     cfg['device'] = device
-    cfg['data']['read_from_graph'] = False
+    # cfg['data']['read_from_graph'] = False
 
     # Run all events
     if 'global_stop' in cfg['data']:

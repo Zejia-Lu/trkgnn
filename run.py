@@ -6,6 +6,7 @@ from jobs.DDP import parallel_process
 from jobs.Apply import apply_to_ds
 from jobs.dummy_test import dummy_test
 from utility.FunctionTime import print_accumulated_times
+from utility.Control import cfg
 
 
 def main(arg):
@@ -29,7 +30,10 @@ def main(arg):
             vtx_model = load_vertex(args.vertex_model, args.vertex_config)
             from jobs.Apply_momentum import predict
         load_config(args.config)
-        predict(args.input, args.model, args.output, args.truth, vtx_model)
+        if cfg['to_disk']:
+            apply_to_ds(args.input, args.model, args.output, save=True)
+        else:
+            predict(args.input, args.model, args.output, args.truth, vtx_model)
         print_accumulated_times()
 
     if arg.command == 'dummy':

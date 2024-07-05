@@ -23,6 +23,7 @@ def load_config(file_str: str) -> None:
         set_default(cfg, 'num_track_predict', True)
         set_default(cfg, 'edge_features', False)
         set_default(cfg, 'momentum_predict', False)
+        set_default(cfg, 'to_disk', False)
         set_default(cfg['data'], 'E0', 1)
         set_default(cfg['data'], 'chunk_size', "10 MB")
         set_default(cfg['data'], 'read_from_graph', False)

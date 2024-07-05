@@ -31,11 +31,13 @@ def get_data_loaders(
 
     # if read from graph defined in config
     if cfg['data']['read_from_graph']:
+        logger.info("Reading from graph files")
         if input_dir.endswith('.pt'):
             chunk_generator = load_graph(input_dir)
         else:
             chunk_generator = load_graph(os.path.join(input_dir, cfg["data"]["collection"]))
     else:
+        logger.info("Reading from ntuple files")
         original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
         if cfg['momentum_predict']: original_branch += ["p"]
         if cfg['data']['graph_with_BField']: original_branch += ['Bx', 'By', 'Bz']

@@ -3,6 +3,7 @@ import numpy as np
 
 import networkx as nx
 
+from utility.Control import cfg
 
 class DTrack:
     def __init__(self):
@@ -46,10 +47,14 @@ class DTrack:
 
         # sort nodes by z in ascending order
         nodes_order = sorted(graph.nodes(), key=lambda n: graph.nodes[n]['z'])
-        # Find the edge with the maximum 'p_pred' attribute for the first node
-        self.p_i = max(graph.edges(nodes_order[0], data=True), key=lambda x: x[2]['p_pred'])[2]['p_pred'] * e0
-        # Find the edge with the minimum 'p_pred' attribute for the last node
-        self.p_f = min(graph.edges(nodes_order[-1], data=True), key=lambda x: x[2]['p_pred'])[2]['p_pred'] * e0
+        if cfg['momentum_predict']:
+            # Find the edge with the maximum 'p_pred' attribute for the first node
+            self.p_i = max(graph.edges(nodes_order[0], data=True), key=lambda x: x[2]['p_pred'])[2]['p_pred'] * e0
+            # Find the edge with the minimum 'p_pred' attribute for the last node
+            self.p_f = min(graph.edges(nodes_order[-1], data=True), key=lambda x: x[2]['p_pred'])[2]['p_pred'] * e0
+        else:
+            self.p_i = 0
+            self.p_f = 0
 
         self.vertex_hit = graph.nodes[nodes_order[0]]
         self.end_hit = graph.nodes[nodes_order[-1]]
