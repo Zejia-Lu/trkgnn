@@ -39,7 +39,7 @@ class Trainer:
         self.summaries = None
         self.distributed = distributed
         self.rank = device
-        self.acc_threshold = 0.5
+        self.acc_threshold = 0
         self.current_epoch = 0
         self.train_samples = 0
         self.valid_samples = 0
@@ -158,9 +158,9 @@ class Trainer:
         #     self.write_checkpoint(checkpoint_id=epoch)
 
         if self.rank == 0:
-            if self.best_model_path is not None:
+            if self.best_model_path is not None and self.best_model_artifact is not None:
                 self.best_model_artifact.add_file(self.best_model_path)
-                wandb.log_artifact(self.best_model_artifact)
+                # wandb.log_artifact(self.best_model_artifact)
 
     @timing_decorator
     def process_epoch(self, epoch, world_size):
@@ -224,7 +224,7 @@ class Trainer:
         # Log epoch metrics
         epoch_results = epoch_metrics.to_dict()
 
-        wandb.log(epoch_results)
+        # wandb.log(epoch_results)
 
         if self.rank == 0:
             checkpoint_file = self.write_checkpoint(epoch)
@@ -232,6 +232,14 @@ class Trainer:
             if epoch_metrics.metrics['valid_loss'] < self.best_loss:
                 self.best_loss = epoch_metrics.metrics['valid_loss']
                 self.best_model_path = checkpoint_file
+
+                # Initialize Artifact
+                if self.best_model_artifact is None:
+                    self.best_model_artifact = wandb.Artifact(
+                        name="best_model",
+                        type="model",
+                        metadata={"best_epoch": epoch}
+                    )
 
         self.logger.info(f"Epoch {epoch} finished")
 
@@ -259,11 +267,22 @@ class Trainer:
             batch_out = self.model(batch)
 
             if cfg['task'] == 'link':
-                y_pred = batch_out
-                batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
+                # y_pred = batch_out
+                # batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
+
+                # Version final
+                y_pred, edge_feats = batch_out 
+                # 组合损失需要传入边特征，注意参数顺序需与loss_func_y定义一致
+                batch_loss = self.loss_func_y(inputs=y_pred, targets=batch.y, edge_feats=edge_feats, weight=batch.w)
+
                 batch_loss.backward()
             elif cfg['task'] == 'momentum':
                 p_pred_all, new_y_score = batch_out
+                # Debug prints
+                # self.logger.info(f'[Batch {i}] Momentum Prediction Sample: {p_pred_all[:5].detach().cpu().numpy()}')
+                # show_y_score = torch.sigmoid(new_y_score)
+                # self.logger.info(f'[Batch {i}] Edge Scores Sample: {show_y_score[:10].detach().cpu().numpy()}')
+
                 # calculate momentum prediction
                 # con_mask = (batch.y == 1)
                 # p_truth = batch.p[con_mask]
@@ -271,6 +290,7 @@ class Trainer:
                 p_truth = batch.p
                 p_pred = p_pred_all
                 batch_loss = self.loss_func_p(p_pred, p_truth, weight=batch.w)
+                # batch_loss = self.loss_func_p(p_pred, p_truth, weight=batch.w) + self.loss_func_y(new_y_score, batch.y, weight=batch.w)
                 # del con_mask
 
                 batch_loss.backward()
@@ -374,8 +394,17 @@ class Trainer:
             batch_out = self.model(batch)
 
             if cfg['task'] == 'link':
-                y_pred = batch_out
-                batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
+                # y_pred = batch_out
+                # batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
+
+                # Version final
+                y_pred, edge_feats = batch_out
+                batch_loss = self.loss_func_y(
+                    inputs=y_pred, 
+                    targets=batch.y, 
+                    edge_feats=edge_feats,  # 补充edge_feats参数
+                    weight=batch.w
+                )
 
                 self.eval_link(y_pred, batch.y, results_link, weight=batch.w, metrics=metrics)
 

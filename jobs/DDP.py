@@ -14,6 +14,8 @@ from utility.Trainer import Trainer
 from utility.EverythingNeeded import build_model, build_optimizer, build_loss, config_logging
 from utility.FunctionTime import timing_decorator, print_accumulated_times
 
+from losses.custom_losses import FocalLoss, combined_loss, ContrastiveLoss, focal_contrastive_combined_loss
+
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
@@ -52,6 +54,35 @@ def setup(rank, world_size):
         device = torch.device("cpu")
 
     cfg['device'] = device
+
+# def setup(rank, world_size):
+#     logger = logging.getLogger("GPU Setup")
+
+#     # 移除硬编码的MASTER_ADDR和MASTER_PORT，依赖外部传入的环境变量
+#     # 检查OS和CUDA可用性
+#     if torch.cuda.is_available():
+#         logger.info("CUDA is available.")
+#         num_gpus = torch.cuda.device_count()
+#         logger.info(f"Number of available GPUs: {num_gpus}")
+#         for i in range(num_gpus):
+#             gpu_info = torch.cuda.get_device_properties(i)
+#             logger.info(f"GPU {i}: {gpu_info.name}")
+
+#         # 初始化进程组（直接读取环境变量中的MASTER_ADDR和MASTER_PORT）
+#         dist.init_process_group(
+#             backend="nccl",
+#             rank=rank,
+#             world_size=world_size
+#             # 不指定init_method，自动读取环境变量
+#         )
+#         # 绑定当前进程到对应的GPU（关键）
+#         torch.cuda.set_device(rank)
+#         device = torch.device(f"cuda:{rank}")
+#     else:
+#         logger.info("CUDA is not available.")
+#         device = torch.device("cpu")
+
+#     cfg['device'] = device  # 更新全局配置的设备
 
 
 def cleanup():
@@ -98,24 +129,27 @@ def process(rank, world_size, config_path, verbose, record, current_time):
 
     logger.info(f"==> Running basic DDP on rank {rank} with total size {world_size}.")
     setup(rank, world_size)
+    if os.getenv('WANDB_MODE') != 'disabled':
+        wandb.login(key="17722033571c81d4046c8e88049a5240ea32b54e")
 
-    wandb.login(key="17722033571c81d4046c8e88049a5240ea32b54e")
-
-    wandb.init(
-        project=f"TrkGNN_DDP_{cfg['task']}",
-        group=f"{pathlib.PurePath(cfg['output_dir']).name}@{current_time}",
-        name=f"DDP_{rank}",
-        job_type=f"{platform.node()}",
-        # resume="auto",
-        config=cfg,
-        mode="online" if record else "disabled",
-        dir=os.path.abspath(cfg['output_dir']),
-        notes=cfg['notes'],
-    )
-    # define a metric we are interested in the minimum of
-    wandb.define_metric("valid_loss", summary="min")
-    # define artifact
-    artifact = wandb.Artifact("best_model", type="model") if rank == 0 else None
+        wandb.init(
+            project=f"TrkGNN_DDP_{cfg['task']}",
+            group=f"{pathlib.PurePath(cfg['output_dir']).name}@{current_time}",
+            name=f"DDP_{rank}",
+            job_type=f"{platform.node()}",
+            # resume="auto",
+            config=cfg,
+            mode="online" if record else "disabled",
+            dir=os.path.abspath(cfg['output_dir']),
+            notes=cfg['notes'],
+        )
+        # define a metric we are interested in the minimum of
+        wandb.define_metric("valid_loss", summary="min")
+        # define artifact
+        artifact = wandb.Artifact("best_model", type="model") if rank == 0 else None
+    else:
+        artifact = None
+        print("Wandb is disabled, not logging.")
 
     # check if the model and summary log exists, if so, load it
     existed_model_path, summary_log = load_model_summary()
@@ -235,6 +269,24 @@ def parallel_process(config_path, world_size, verbose, record=False):
         nprocs=world_size,
         join=True
     )
+
+# def parallel_process(config_path, world_size, verbose, record=False, master_addr='localhost', master_port=29500):
+#     # 移除硬编码，使用传入的参数设置环境变量
+#     os.environ["MASTER_ADDR"] = master_addr
+#     os.environ["MASTER_PORT"] = str(master_port)  # 确保是字符串类型
+#     if verbose:
+#         os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
+
+#     c = datetime.now()
+#     current_time = c.strftime('%m/%d/%Y-%H:%M')
+
+#     # 启动进程时，将master_addr和master_port传给process函数（如果需要）
+#     mp.spawn(
+#         process,
+#         args=(world_size, config_path, verbose, record, current_time),
+#         nprocs=world_size,
+#         join=True
+#     )
 
 
 if __name__ == '__main__':

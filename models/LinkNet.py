@@ -1,6 +1,8 @@
 # Externals
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.functional import normalize
 from torch_geometric.nn import TransformerConv
 from torch_scatter import scatter_add
 # from torch_sparse import SparseTensor
@@ -41,7 +43,11 @@ class LinkNet(nn.Module):
         )
 
         # The edge classifier computes final edge scores
-        self.edge_classifier = make_mlp(2 * hidden_dim, [hidden_dim, 1], output_activation=None)
+        self.edge_classifier = make_mlp(
+            input_size=2 * hidden_dim,
+            sizes=[hidden_dim, 1],
+            output_activation=None
+        )
 
     @timing_decorator
     def forward(self, data, verbose=False):
@@ -54,9 +60,16 @@ class LinkNet(nn.Module):
 
         edge_indices = torch.stack([send_idx, recv_idx], dim=0)
 
+        # # Normalize edge features
+        # x_norm = normalize(data.x, p=2, dim=1)
+        # edge_attr_norm = normalize(data.edge_attr, p=2, dim=1)
+        # edge_attr_bi_norm = torch.cat([edge_attr_norm, edge_attr_norm], dim=0)
+
         # Embed node and edge features
         node_features = self.node_embedding(data.x)
         edge_features = self.edge_embedding(edge_attr_bi)
+        # node_features = self.node_embedding(x_norm)
+        # edge_features = self.edge_embedding(edge_attr_bi_norm)
 
         # Edge indices is of shape [2, E], where E is the number of edges
         src_indices, dst_indices = edge_indices

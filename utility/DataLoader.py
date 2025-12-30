@@ -2,6 +2,7 @@
 import glob
 import os
 import logging
+import re
 
 # External imports
 import numpy as np
@@ -59,7 +60,15 @@ def get_data_loaders(
             break
 
         if not shuffle:
-            yield GNNTrackData(chunk_data)
+            dataset = GNNTrackData(chunk_data)
+            data_loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=False,
+                num_workers=n_workers,
+                pin_memory=True,
+            )
+            yield data_loader
         elif apply:
             data_loader = DataLoader(
                 GNNTrackData(chunk_data),
@@ -90,7 +99,7 @@ def get_data_loaders(
             # disable large graphs for now
             large_graphs = None
 
-            train_data, test_data = train_test_split(chunk_data, test_size=0.3, random_state=cfg['rndm'])
+            train_data, test_data = train_test_split(chunk_data, test_size=0.25, random_state=cfg['rndm'])
             train_dataset = GNNTrackData(train_data)
             valid_dataset = GNNTrackData(test_data)
             # large_dataset = GNNTrackData(large_graphs)
@@ -150,7 +159,7 @@ def get_data_loaders(
             # print(f"[ {rank} ] Number of samples assigned to GPU {rank}: {len(sample_indices)}")
             # print(f"[ {rank} ] Assigned sample indices for GPU {rank}: {sample_indices}")
 
-            yield train_data_loader, valid_data_loader, None,  # large_data_loader
+            yield train_data_loader, valid_data_loader, None  # large_data_loader
 
 
 @timing_decorator
@@ -218,17 +227,25 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", ap
 @timing_decorator
 def load_graph(graph_file_list):
     logger = logging.getLogger(__name__)
-
     # check if endswith .pt
     if graph_file_list.endswith('.pt'):
         # Load the file and yield it
         tensor = torch.load(graph_file_list)
-
         yield tensor
     else:
         # check if the directory exists
         if os.path.isdir(graph_file_list):
             files = glob.glob(os.path.join(graph_file_list, '*.pt'))
+            logger.info(f"Found {len(files)} graph files")
+            # Check if the pattern matches the files
+            pattern = re.compile(r'graph_(\d+).pt')
+            matched_files = [f for f in files if pattern.match(os.path.basename(f))]
+            
+            if len(matched_files) > 0:
+                files.sort(key=lambda x: int(pattern.search(os.path.basename(x)).group(1)))
+            else:
+                # No need to sort
+                pass
         else:
             logger.warning(f"The directory {graph_file_list} does not exist.")
             raise FileNotFoundError

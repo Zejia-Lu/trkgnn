@@ -110,7 +110,7 @@ class MomNet(nn.Module):
         # edge_scores = self.edge_classifier(
         #     torch.cat([final_node_features[start_idx], final_node_features[end_idx]], dim=1)
         # ).squeeze(-1)
-        #
+        
         # return momentum_change, edge_scores
 
 

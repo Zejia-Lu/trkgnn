@@ -32,7 +32,7 @@ def load_config(file_str: str) -> None:
         set_default(cfg['data'], 'scale_factor_BField', 100.0)
         set_default(cfg['data'], 'min_graph_size', 1)
         set_default(cfg['data'], 'max_graph_size', 80)
-        set_default(cfg['data'], 'threshold', 0.5)
+        set_default(cfg['data'], 'threshold', 0)
 
         set_default(cfg['training'], 'n_epochs', cfg['training']['n_total_epochs'])
 
