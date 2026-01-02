@@ -18,6 +18,7 @@ def load_ntuples(
         f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1,
         graph_with_bfield=True, only_bfield_y=False,
         scale_r = 0.1, scale_theta = 10,
+        entry_start: int | None = None, entry_stop: int | None = None,
 ) -> Generator[List[torch_geometric.data.Data], None, None]:
     def convert_to_graph(ch) -> list[torch_geometric.data.Data]:
         g_data = []
@@ -80,6 +81,8 @@ def load_ntuples(
             filter_name=branch_name,
             cut=f'{col}_weight>0',
             report=True,
+            entry_start=entry_start,
+            entry_stop=entry_stop,
     ):
         print(f'Loading {report.start} to {report.stop}...', flush=True)
         data = convert_to_graph(chunk)
@@ -179,6 +182,10 @@ if __name__ == '__main__':
                         help="the scale factor for distance (general ~ 10 to 100, so default is 0.1)")
     parser.add_argument('--scale_theta', type=float, default=10,
                         help="the scale factor for theta radian (general ~ 0.1 rad, so default is 10)")
+    parser.add_argument('--entry-start', dest='entry_start', type=int, default=None,
+                        help="first entry index (0-based, inclusive) to process from the ROOT file")
+    parser.add_argument('--entry-stop', dest='entry_stop', type=int, default=None,
+                        help="last entry index (0-based, exclusive) to process from the ROOT file")
 
     args = parser.parse_args()
 
@@ -207,6 +214,7 @@ if __name__ == '__main__':
             scale_b=args.scale_b, graph_with_bfield=args.bfield,
             only_bfield_y=args.only_bfield_y,
             scale_r=args.scale_r, scale_theta=args.scale_theta,
+            entry_start=args.entry_start, entry_stop=args.entry_stop,
         )
 
         df_col = []
