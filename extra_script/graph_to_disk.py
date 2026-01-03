@@ -8,7 +8,7 @@ import torch
 import torch_geometric
 import os
 
-from typing import Generator, List, Optional
+from typing import Generator, List
 
 import plotly.graph_objects as go
 import plotly.express as px
@@ -18,7 +18,6 @@ def load_ntuples(
         f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1,
         graph_with_bfield=True, only_bfield_y=False,
         scale_r = 0.1, scale_theta = 10,
-        entry_start: Optional[int] = None, entry_stop: Optional[int] = None,
 ) -> Generator[List[torch_geometric.data.Data], None, None]:
     def convert_to_graph(ch) -> list[torch_geometric.data.Data]:
         g_data = []
@@ -81,8 +80,6 @@ def load_ntuples(
             filter_name=branch_name,
             cut=f'{col}_weight>0',
             report=True,
-            entry_start=entry_start,
-            entry_stop=entry_stop,
     ):
         print(f'Loading {report.start} to {report.stop}...', flush=True)
         data = convert_to_graph(chunk)
@@ -169,7 +166,8 @@ if __name__ == '__main__':
     # change args to only one file
     parser.add_argument('file', type=str, help="the input root file")
     parser.add_argument('-o', '--output', type=str, default='output', help="the output directory")
-    parser.add_argument('-c', '--chunk', type=str, default='50 MB', help="the chunk size")
+    parser.add_argument('-c', '--chunk', type=str, default='50 MB',
+                        help="the chunk size; accept uproot strings like '50 MB' or an integer number of entries")
     parser.add_argument('-m', '--momentum_predict', action='store_true', default=False, help="whether to predict momentum")
     parser.add_argument('-e', '--e0', type=float, default=8000, help="the beam energy")
     parser.add_argument('-t', '--tag', type=str, default='out', help="the output file name suffix")
@@ -182,12 +180,14 @@ if __name__ == '__main__':
                         help="the scale factor for distance (general ~ 10 to 100, so default is 0.1)")
     parser.add_argument('--scale_theta', type=float, default=10,
                         help="the scale factor for theta radian (general ~ 0.1 rad, so default is 10)")
-    parser.add_argument('--entry-start', dest='entry_start', type=int, default=None,
-                        help="first entry index (0-based, inclusive) to process from the ROOT file")
-    parser.add_argument('--entry-stop', dest='entry_stop', type=int, default=None,
-                        help="last entry index (0-based, exclusive) to process from the ROOT file")
 
     args = parser.parse_args()
+
+    # normalize chunk size: allow integer (entries) or uproot-style string ("50MB")
+    try:
+        chunk_size = int(args.chunk)
+    except (TypeError, ValueError):
+        chunk_size = args.chunk
 
     origin_br = ["x", "y", "z", "start", "end", "weight", "truth", "global_num_tracks", "distance", "Theta", "Phi"]
     if args.momentum_predict: origin_br += ["p"]
@@ -209,12 +209,11 @@ if __name__ == '__main__':
         collection_branch = [f'{col}_{br}' for br in origin_br]
         collection_branch += ['evt_num', 'run_num']
         graph_data = load_ntuples(
-            file_path, 'dp', collection_branch, col, chunk_size=args.chunk,
+            file_path, 'dp', collection_branch, col, chunk_size=chunk_size,
             momentum_predict=args.momentum_predict, e0=args.e0,
             scale_b=args.scale_b, graph_with_bfield=args.bfield,
             only_bfield_y=args.only_bfield_y,
             scale_r=args.scale_r, scale_theta=args.scale_theta,
-            entry_start=args.entry_start, entry_stop=args.entry_stop,
         )
 
         df_col = []
