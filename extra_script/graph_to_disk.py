@@ -8,7 +8,7 @@ import torch
 import torch_geometric
 import os
 
-from typing import Generator, List
+from typing import Generator, List, Optional
 
 import plotly.graph_objects as go
 import plotly.express as px
@@ -18,7 +18,7 @@ def load_ntuples(
         f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1,
         graph_with_bfield=True, only_bfield_y=False,
         scale_r = 0.1, scale_theta = 10,
-        entry_start: int | None = None, entry_stop: int | None = None,
+        entry_start: Optional[int] = None, entry_stop: Optional[int] = None,
 ) -> Generator[List[torch_geometric.data.Data], None, None]:
     def convert_to_graph(ch) -> list[torch_geometric.data.Data]:
         g_data = []
