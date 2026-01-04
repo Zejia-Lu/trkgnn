@@ -1,0 +1,80 @@
+output_dir: ./output.link.rec
+rndm: 1
+
+data:
+  #--------------------------------
+  # There are two ways to read data:
+  # 1. Read from ROOT (default)
+  # 2. Read from graph
+  #    -- Graph is built from script: `extra_script/graph_to_disk.py`
+  #    -- One Graph file is a list of graphs to be one chunk
+  #--------------------------------
+  # Read from ROOT (disable if read from graph)
+  input_dir: "/lustre/collider/luzejia/darkShine/DSS/master/darkshine-simulation/run/trkgnn/Tracker_GNN.root"
+  tree_name: 'dp'
+  global_stop: 8000
+  chunk_size: "30 MB"
+
+  # Read from graph
+  read_from_graph: true
+  input_graph_dir: "/lustre/collider/luzejia/darkShine/tracking/workspace_test/output.graph"
+  global_stop_graph_file: -1 # for test
+
+  # General Data Loader Settings
+  collection: 'DigitizedRecTrk'
+  batch_size: 64
+  n_workers: 0
+  E0: 8000
+  min_graph_size: 0.5 # MB
+
+  # This is mainly for application stage (automatically true)
+  #   -- it's more or less determined in the training stage and graph building stage
+  #   -- If input graph or trained model has 3 features, then it's trained without BField
+  #   -- If input graph or trained model has 6 features, then it's trained with BField
+  graph_with_BField: true
+  # for scale BField to the order of position
+  scale_factor_BField: 100.0
+
+  # Tracking Boundary
+  tracking_boundary:
+    # tagging
+    # z_min: -607.75
+    # z_max: -7.5
+    # recoil
+   z_min: 7.5
+   z_max: 180
+
+
+# make sure to choose the correct model
+task: 'link' # 'link' or 'momentum'
+num_track_predict: false
+edge_features: true
+
+# apply
+to_disk: false
+momentum_predict: false
+
+model:
+  name: LinkNet
+  node_input_dim: 6 # (x,y,z, By)
+  edge_input_dim: 3 # (r, theta, phi)
+  hidden_dim: 64
+  heads: 4
+  n_iterations: 3
+  n_encoder_layers: 2
+
+loss_func: binary_cross_entropy_with_logits
+
+optimizer:
+  name: Adam
+  learning_rate: 0.004
+  weight_decay: 1.e-5
+  lr_decay_schedule:
+    - { start_epoch: 4, end_epoch: 8, factor: 0.1 }
+    - { start_epoch: 8, end_epoch: 10, factor: 0.01 }
+    - { start_epoch: 10, end_epoch: 12, factor: 0.001 }
+    - { start_epoch: 12, end_epoch: 15, factor: 0.0001 }
+
+training:
+  #  n_epochs: 10
+  n_total_epochs: 30
