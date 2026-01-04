@@ -1,6 +1,7 @@
 import logging
 import os
 import gc
+import inspect
 from itertools import chain
 
 import numpy as np
@@ -54,6 +55,23 @@ class Trainer:
         self.best_loss = sys.float_info.max
         self.best_model_path = None
         self.best_model_artifact = None
+
+    def _unpack_link_out(self, batch_out):
+        """Support models that return either y_pred or (y_pred, edge_feats)."""
+        if isinstance(batch_out, tuple):
+            y_pred = batch_out[0]
+            edge_feats = batch_out[1] if len(batch_out) > 1 else None
+        else:
+            y_pred = batch_out
+            edge_feats = None
+        return y_pred, edge_feats
+
+    def _link_loss(self, y_pred, batch, edge_feats):
+        """Route to loss_func_y with/without edge_feats depending on signature."""
+        sig = inspect.signature(self.loss_func_y)
+        if 'edge_feats' in sig.parameters:
+            return self.loss_func_y(y_pred, batch.y, edge_feats=edge_feats, weight=batch.w)
+        return self.loss_func_y(y_pred, batch.y, weight=batch.w)
 
     def y_loss(self, y_pred, y_true, weight=None):
         loss = self.loss_func_y(y_pred, y_true, weight=weight)
@@ -267,13 +285,8 @@ class Trainer:
             batch_out = self.model(batch)
 
             if cfg['task'] == 'link':
-                # y_pred = batch_out
-                # batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
-
-                # Version final
-                y_pred, edge_feats = batch_out 
-                # 组合损失需要传入边特征，注意参数顺序需与loss_func_y定义一致
-                batch_loss = self.loss_func_y(inputs=y_pred, targets=batch.y, edge_feats=edge_feats, weight=batch.w)
+                y_pred, edge_feats = self._unpack_link_out(batch_out)
+                batch_loss = self._link_loss(y_pred, batch, edge_feats)
 
                 batch_loss.backward()
             elif cfg['task'] == 'momentum':
@@ -394,17 +407,8 @@ class Trainer:
             batch_out = self.model(batch)
 
             if cfg['task'] == 'link':
-                # y_pred = batch_out
-                # batch_loss = self.loss_func_y(y_pred, batch.y, weight=batch.w)
-
-                # Version final
-                y_pred, edge_feats = batch_out
-                batch_loss = self.loss_func_y(
-                    inputs=y_pred, 
-                    targets=batch.y, 
-                    edge_feats=edge_feats,  # 补充edge_feats参数
-                    weight=batch.w
-                )
+                y_pred, edge_feats = self._unpack_link_out(batch_out)
+                batch_loss = self._link_loss(y_pred, batch, edge_feats)
 
                 self.eval_link(y_pred, batch.y, results_link, weight=batch.w, metrics=metrics)
 
