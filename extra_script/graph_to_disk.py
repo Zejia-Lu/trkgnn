@@ -8,7 +8,7 @@ import torch
 import torch_geometric
 import os
 
-from typing import Generator, List
+from typing import Generator, List, Optional
 
 import plotly.graph_objects as go
 import plotly.express as px
@@ -17,7 +17,7 @@ import plotly.express as px
 def load_ntuples(
         f_path, tree_name, branch_name, col, chunk_size="100 MB", momentum_predict=True, e0=8000, scale_b=1,
         graph_with_bfield=True, only_bfield_y=False,
-        scale_r = 0.1, scale_theta = 10,
+        scale_r = 0.1, scale_theta = 10, event_stop: Optional[int] = None,
 ) -> Generator[List[torch_geometric.data.Data], None, None]:
     def convert_to_graph(ch) -> list[torch_geometric.data.Data]:
         g_data = []
@@ -81,6 +81,8 @@ def load_ntuples(
             cut=f'{col}_weight>0',
             report=True,
     ):
+        if event_stop is not None and report.start >= event_stop:
+            break
         print(f'Loading {report.start} to {report.stop}...', flush=True)
         data = convert_to_graph(chunk)
         yield data
@@ -180,6 +182,8 @@ if __name__ == '__main__':
                         help="the scale factor for distance (general ~ 10 to 100, so default is 0.1)")
     parser.add_argument('--scale_theta', type=float, default=10,
                         help="the scale factor for theta radian (general ~ 0.1 rad, so default is 10)")
+    parser.add_argument('--event-stop', type=int, default=None,
+                        help="stop processing when the current report.start reaches or exceeds this index")
 
     args = parser.parse_args()
 
@@ -213,7 +217,7 @@ if __name__ == '__main__':
             momentum_predict=args.momentum_predict, e0=args.e0,
             scale_b=args.scale_b, graph_with_bfield=args.bfield,
             only_bfield_y=args.only_bfield_y,
-            scale_r=args.scale_r, scale_theta=args.scale_theta,
+            scale_r=args.scale_r, scale_theta=args.scale_theta, event_stop=args.event_stop,
         )
 
         df_col = []
