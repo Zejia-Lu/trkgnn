@@ -34,9 +34,9 @@ def get_data_loaders(
     if cfg['data']['read_from_graph']:
         logger.info("Reading from graph files")
         if input_dir.endswith('.pt'):
-            chunk_generator = load_graph(input_dir)
+            chunk_generator = load_graph(input_dir, return_file_name=apply)
         else:
-            chunk_generator = load_graph(os.path.join(input_dir, cfg["data"]["collection"]))
+            chunk_generator = load_graph(os.path.join(input_dir, cfg["data"]["collection"]), return_file_name=apply)
     else:
         logger.info("Reading from ntuple files")
         original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
@@ -59,6 +59,10 @@ def get_data_loaders(
             logger.info("All chunks are loaded")
             break
 
+        chunk_name = None
+        if apply and cfg['data']['read_from_graph'] and isinstance(chunk_data, tuple) and len(chunk_data) == 2:
+            chunk_data, chunk_name = chunk_data
+
         if not shuffle:
             dataset = GNNTrackData(chunk_data)
             data_loader = DataLoader(
@@ -79,7 +83,7 @@ def get_data_loaders(
                 num_workers=n_workers,
                 pin_memory=True,
             )
-            yield data_loader
+            yield (data_loader, chunk_name) if chunk_name is not None else data_loader
         else:
             large_graphs = []
 
@@ -225,13 +229,13 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", ap
 
 
 @timing_decorator
-def load_graph(graph_file_list):
+def load_graph(graph_file_list, return_file_name: bool = False):
     logger = logging.getLogger(__name__)
     # check if endswith .pt
     if graph_file_list.endswith('.pt'):
         # Load the file and yield it
         tensor = torch.load(graph_file_list)
-        yield tensor
+        yield (tensor, os.path.basename(graph_file_list)) if return_file_name else tensor
     else:
         # check if the directory exists
         if os.path.isdir(graph_file_list):
@@ -244,8 +248,12 @@ def load_graph(graph_file_list):
             if len(matched_files) > 0:
                 files.sort(key=lambda x: int(pattern.search(os.path.basename(x)).group(1)))
             else:
-                # No need to sort
-                pass
+                # Fallback to natural sorting to keep ordering consistent for names like graph_list.0.conv.pt
+                def _natural_key(path: str):
+                    base = os.path.basename(path)
+                    return [int(t) if t.isdigit() else t for t in re.split(r'(\d+)', base)]
+
+                files.sort(key=_natural_key)
         else:
             logger.warning(f"The directory {graph_file_list} does not exist.")
             raise FileNotFoundError
@@ -256,7 +264,7 @@ def load_graph(graph_file_list):
         for file_name in files:
             # Load the file and yield it
             tensor = torch.load(file_name)
-            yield tensor
+            yield (tensor, os.path.basename(file_name)) if return_file_name else tensor
 
 
 class GNNTrackData(Dataset):

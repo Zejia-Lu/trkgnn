@@ -88,7 +88,13 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
         itr = 0
         while True:
             try:
-                apply_loader = next(data_generator)
+                next_chunk = next(data_generator)
+                if isinstance(next_chunk, tuple):
+                    apply_loader, chunk_name = next_chunk
+                else:
+                    apply_loader, chunk_name = next_chunk, None
+                if chunk_name:
+                    logger.info(f"Chunk source file: {chunk_name}")
                 logger.info(f"Processing {itr + 1}th iteration with {len(apply_loader)} batches.")
 
                 predicted_graph_list = []
@@ -115,8 +121,16 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                     predicted_graph_list += batch.to_data_list()
                     num_graphs += batch.num_graphs
 
-                torch.save(predicted_graph_list, os.path.join(output_graph_dir, f"momentum_{itr}.pt"))
-                torch.save(analyzed_tracks_list, os.path.join(output_graph_dir, f"tracks_{itr}.lt"))
+                if chunk_name:
+                    stem, ext = os.path.splitext(chunk_name)
+                    momentum_name = chunk_name
+                    tracks_name = f"{stem}_tracks.lt"
+                else:
+                    momentum_name = f"momentum_{itr}.pt"
+                    tracks_name = f"tracks_{itr}.lt"
+
+                torch.save(predicted_graph_list, os.path.join(output_graph_dir, momentum_name))
+                torch.save(analyzed_tracks_list, os.path.join(output_graph_dir, tracks_name))
 
                 logger.info(f"Number of graphs: {num_graphs} processed in {itr + 1}th iteration.")
                 itr += 1

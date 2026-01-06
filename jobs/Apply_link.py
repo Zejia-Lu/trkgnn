@@ -77,7 +77,13 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
         while True:
             try:
                 logger.info(f"Processing chunk {itr}")
-                apply_loader = next(data_generator)
+                next_chunk = next(data_generator)
+                if isinstance(next_chunk, tuple):
+                    apply_loader, chunk_name = next_chunk
+                else:
+                    apply_loader, chunk_name = next_chunk, None
+                if chunk_name:
+                    logger.info(f"Chunk source file: {chunk_name}")
                 logger.info(f"Chunk {itr} has {len(apply_loader)} batches")
                 predicted_graph_list = []
 
@@ -104,8 +110,9 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                     import gc
                     gc.collect()
 
-                torch.save(predicted_graph_list, os.path.join(output_graph_dir, f"graph_{itr}.pt"))
-                logger.info(f"Saved output file: graph_{itr}.pt")
+                output_name = chunk_name if chunk_name else f"graph_{itr}.pt"
+                torch.save(predicted_graph_list, os.path.join(output_graph_dir, output_name))
+                logger.info(f"Saved output file: {output_name}")
                 itr += 1
 
             except StopIteration:
