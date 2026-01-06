@@ -90,10 +90,12 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                 for j, batch in enumerate(apply_loader):
                     batch = batch.to(cfg['device'])
                     batch_out = model(batch)
-                    # y_pred = torch.sigmoid(batch_out)
-                    
-                    # Version final
-                    y_pred, edge_feats = batch_out
+
+                    # Support models that return only y_pred or (y_pred, edge_feats)
+                    if isinstance(batch_out, tuple):
+                        y_pred = batch_out[0]
+                    else:
+                        y_pred = batch_out
                     y_pred = torch.sigmoid(y_pred)
 
                     if not truth:
