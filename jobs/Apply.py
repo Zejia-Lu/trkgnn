@@ -106,7 +106,13 @@ def apply_to_ds(input_dir: list[str], model_dir: str, output_dir: str, save: boo
         itr = 0
         while True:
             try:
-                apply_loader = next(data_generator)
+                next_chunk = next(data_generator)
+                if isinstance(next_chunk, tuple):
+                    apply_loader, chunk_name = next_chunk
+                else:
+                    apply_loader, chunk_name = next_chunk, None
+                if chunk_name:
+                    logger.info(f"Chunk source file: {chunk_name}")
                 logger.info(f"Processing {itr + 1}th iteration with {len(apply_loader)} batches.")
                 # final tracks
                 tracks = []
