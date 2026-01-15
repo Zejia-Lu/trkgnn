@@ -203,7 +203,7 @@ if __name__ == '__main__':
     # Get branch names
     branches = cur_tree.keys()
 
-    collections = set(branch.rsplit('_', 1)[0] for branch in branches if branch.rsplit('_', 1)[-1] in origin_br)
+    collections = set(branch.split('_', 1)[0] for branch in branches if branch.split('_', 1)[-1] in origin_br)
     print(collections, flush=True)
 
     for col in list(collections):
