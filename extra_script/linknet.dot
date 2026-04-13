@@ -1,0 +1,25 @@
+digraph LinkNet {
+  rankdir=TB;
+  graph [fontsize=12, fontname="Helvetica", labelloc=t, label="LinkNet"];
+  node [shape=box, style="rounded,filled", fillcolor="#e7f4ff", fontname="Helvetica"];
+  edge [color="#444444", arrowsize=0.8];
+
+  input_node [label="Node Features\n(x, y, z, Bx, By, Bz)"];
+  input_edge [label="Edge Attributes\n(R, theta, phi)"];
+
+  node_embed [label="Node Embedding\n(MLP)"];
+  edge_embed [label="Edge Embedding\n(MLP)"];
+
+  combined [label="Combined Feature\n(Scatter Add + Concat)"];
+  transconv [label="TransformerConv\n(iterate N times)", fillcolor="#ffd6d6"];
+  edge_clf [label="Edge Classifier\n(MLP)", fillcolor="#ffd6d6"];
+  edge_out [label="Edge Scores (y)"];
+
+  input_node -> node_embed;
+  input_edge -> edge_embed;
+  node_embed -> combined;
+  edge_embed -> combined;
+  combined -> transconv;
+  transconv -> edge_clf;
+  edge_clf -> edge_out;
+}
