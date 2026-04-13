@@ -40,7 +40,7 @@ class Trainer:
         self.summaries = None
         self.distributed = distributed
         self.rank = device
-        self.acc_threshold = 0
+        self.acc_threshold = 0.5
         self.current_epoch = 0
         self.train_samples = 0
         self.valid_samples = 0
@@ -178,7 +178,7 @@ class Trainer:
         if self.rank == 0:
             if self.best_model_path is not None and self.best_model_artifact is not None:
                 self.best_model_artifact.add_file(self.best_model_path)
-                # wandb.log_artifact(self.best_model_artifact)
+                wandb.log_artifact(self.best_model_artifact)
 
     @timing_decorator
     def process_epoch(self, epoch, world_size):
@@ -242,7 +242,7 @@ class Trainer:
         # Log epoch metrics
         epoch_results = epoch_metrics.to_dict()
 
-        # wandb.log(epoch_results)
+        wandb.log(epoch_results)
 
         if self.rank == 0:
             checkpoint_file = self.write_checkpoint(epoch)
