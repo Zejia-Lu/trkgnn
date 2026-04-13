@@ -335,176 +335,149 @@ def cluster(gr: torch_geometric.data.Data, threshold: float = 0, first_threshold
     start_nodes = (out_degrees > 0) & (in_degrees == 0)
     start_nodes = start_nodes.nonzero(as_tuple=False).view(-1).numpy()
 
+    # Precompute node coordinates once to avoid repeated tensor→numpy conversions
+    node_xyz = gr.x[:, :3].cpu().numpy()
+
     @timing_decorator
-    def bfs_for_multiple_starts_with_layers(data, start_nodes_, layers):
-        
+    def dijkstra_with_parent_pointers(data, start_nodes_, layers):
         import heapq
-        
-        # 1. 构建边的分数字典
-        edge_dict = defaultdict(dict)
+
         edge_index = data.edge_index.cpu().numpy()
         edge_attr = data.edge_attr.cpu().numpy()
-        for i in range(edge_index.shape[1]):
-            start = edge_index[0][i].item()
-            end = edge_index[1][i].item()
-            score = edge_attr[i][-2].item()  # 取分数
-            edge_dict[start][end] = score
+        layers_arr = layers.numpy()
 
-        # 构建子节点列表
+        # Build adjacency list and edge-score lookup in one pass
         children = defaultdict(list)
-        for start, end in edge_index.T:
-            children[start].append(end)
+        edge_score_dict = defaultdict(dict)
+        for i in range(edge_index.shape[1]):
+            s, e = int(edge_index[0][i]), int(edge_index[1][i])
+            score = float(edge_attr[i][-2])
+            children[s].append((e, score))
+            edge_score_dict[s][e] = score
 
-        # 2. 使用优先队列（按路径总分排序）
+        # Dijkstra with parent pointers, keyed by (start_node, node).
+        # This correctly handles shared hits: the same node C can appear in
+        # multiple start nodes' trees independently, each with its own best
+        # score and parent. Heap entries are (neg_score, node, start_node) —
+        # no path list copying, so each push is O(1) instead of O(depth).
+        best_score = {}   # (start_node, node) -> best cumulative score
+        parent = {}       # (start_node, node) -> predecessor node (None for roots)
+
         heap = []
-        best_scores = defaultdict(lambda: -float('inf'))
-        best_paths = defaultdict(dict)  # 记录每个起点到各节点的路径
+        for sn in start_nodes_:
+            sn = int(sn)
+            best_score[(sn, sn)] = 0.0
+            parent[(sn, sn)] = None
+            heapq.heappush(heap, (0.0, sn, sn))  # (neg_score, node, start_node)
 
-        # 初始化起点
-        for start_node in start_nodes_:
-            initial_score = 0.0
-            path = [start_node]
-            heapq.heappush(heap, (-initial_score, start_node, path))  # 使用负数实现大根堆
-            best_scores[start_node] = initial_score
-            best_paths[start_node][start_node] = (path, initial_score)  # 记录起点路径
-
-        # 3. Dijkstra算法核心循环
         while heap:
-            current_score_neg, current_node, path = heapq.heappop(heap)
-            current_score = -current_score_neg
+            neg_score, node, start_node = heapq.heappop(heap)
+            cum_score = -neg_score
 
-            # 如果当前路径不是最优，跳过
-            if current_score < best_scores[current_node]:
+            if cum_score < best_score.get((start_node, node), -float('inf')):
                 continue
 
-            current_layer = layers[current_node].item()
-            for child in children[current_node]:
-                child_layer = layers[child].item()
-                if child_layer != current_layer + 1:
-                    continue  # 仅处理下一层的子节点
+            node_layer = int(layers_arr[node])
+            for child, edge_score in children[node]:
+                if int(layers_arr[child]) != node_layer + 1:
+                    continue
+                new_score = cum_score + edge_score
+                key = (start_node, child)
+                if new_score > best_score.get(key, -float('inf')):
+                    best_score[key] = new_score
+                    parent[key] = node
+                    heapq.heappush(heap, (-new_score, child, start_node))
 
-                # 获取边的分数
-                edge_score = edge_dict[current_node].get(child, 0.0)
-                new_score = current_score + edge_score
-                new_path = path + [child]
-                start_node = path[0]  
+        # Leaf nodes per start_node: (sn, node) pairs where no child in sn's
+        # tree points back to node as its parent.
+        is_non_leaf = set()
+        for (sn, node), par in parent.items():
+            if par is not None:
+                is_non_leaf.add((sn, par))
+        leaves = [(sn, node) for (sn, node) in parent if (sn, node) not in is_non_leaf]
 
-                # 更新最优路径
-                if new_score > best_scores[child]:
-                    best_scores[child] = new_score
-                    best_paths[start_node][child] = (new_path, new_score)
-                    heapq.heappush(heap, (-new_score, child, new_path))
-                    
+        def reconstruct_path(sn, leaf):
+            path = []
+            cur = leaf
+            while cur is not None:
+                path.append(cur)
+                cur = parent.get((sn, cur))
+            return list(reversed(path))
 
-        # 4. 收集每个起点的最高分路径
         final_paths = defaultdict(list)
-        node_to_best_path = {}  # 用于记录每个节点的最佳路径及其分数
-        used_nodes = set()  # 用于记录已经使用过的节点
-
-        def calculate_average_score(path):
-            if len(path) <= 3:
-                return 0.0
-            total_score = 0.0
-            for i in range(len(path) - 1):
-                start, end = path[i], path[i + 1]
-                total_score += edge_dict[start].get(end, 0.0)
-            return total_score / (len(path) - 1)
-
-        for start_node in best_paths:
-            for node in best_paths[start_node]:
-                path, score = best_paths[start_node][node]
-                int_path = [int(n) for n in path]
-                avg_score = calculate_average_score(int_path)
-
-                # 遍历路径中的每个节点
-                for n in path:
-                    node_coords = tuple(np.round(gr.x[n, :3].cpu().numpy(), decimals=4))
-                    # 如果节点已经存在于 node_to_best_path 中，比较分数
-                    if node_coords in node_to_best_path or node_coords in used_nodes:
-                        # 如果当前路径的分数更高，则替换
-                        if score > node_to_best_path[node_coords][1]:
-                            node_to_best_path[node_coords] = (int_path, score, avg_score)
-                    else:
-                        # 如果节点不存在，则直接记录
-                        node_to_best_path[node_coords] = (int_path, score, avg_score)
-                        used_nodes.add(node_coords)
-
-        # 将 node_to_best_path 中的路径添加到 final_paths
-        for node_coords, (path, score, avg_score) in node_to_best_path.items():
-            start_node = path[0]  # 假设路径的第一个节点是起点
-            if path not in final_paths[start_node]:
-                final_paths[start_node].append((path, avg_score))
-        
-        # for start_node, paths in final_paths.items():
-        #     for path in paths:
-        #         print(f"path from start_node {start_node}: {len(path)}")
+        for sn, leaf in leaves:
+            path = reconstruct_path(sn, leaf)
+            if len(path) < 2:
+                continue
+            if len(path) > 3:
+                total = sum(edge_score_dict[path[i]].get(path[i + 1], 0.0)
+                            for i in range(len(path) - 1))
+                avg_score = total / (len(path) - 1)
+            else:
+                avg_score = 0.0
+            final_paths[sn].append((path, avg_score))
 
         return final_paths
 
     layers = sub_data.x[:, -1].long()
-    paths_from_start = bfs_for_multiple_starts_with_layers(sub_data, start_nodes, layers)
+    paths_from_start = dijkstra_with_parent_pointers(sub_data, start_nodes, layers)
 
-    # 5. 筛选 paths_from_start 处理 shared hit
+    # Filter paths_from_start to resolve shared hits
     def clean_shared_hits(paths_from_start):
         all_paths = []
         for start_node, path_list in paths_from_start.items():
             for path, avg_score in path_list:
-                if len(path) > 3:  # 只处理长度大于 3 的路径
+                if len(path) > 3:
                     all_paths.append((path, avg_score, start_node))
 
+        if not all_paths:
+            return defaultdict(list)
+
+        # Build spatial index: (z_rounded, xy_rounded) -> [path indices]
+        # Replaces the O(N² × path_len) nested loop with an O(total_hits) pass.
+        hit_to_paths = defaultdict(list)
+        for i, (path, _, _) in enumerate(all_paths):
+            for n in path:
+                xy = tuple(np.round(node_xyz[n, :2], decimals=4))
+                z_key = round(float(node_xyz[n, 2]), 4)
+                hit_to_paths[(z_key, xy)].append(i)
+
+        # Collect conflict pairs from shared hits
+        conflicts = defaultdict(set)
+        for indices in hit_to_paths.values():
+            if len(indices) > 1:
+                for a in indices:
+                    for b in indices:
+                        if a != b:
+                            conflicts[a].add(b)
+
+        discarded = set()
         cleaned_paths_from_start = defaultdict(list)
-        discarded_paths = set()  # 记录被丢弃的路径
 
         for i, (path, avg_score, start_node) in enumerate(all_paths):
-            if tuple(path) in discarded_paths:
-                continue  # 路径已被丢弃，跳过
-
-            keep_path = True
-            for j, (other_path, other_avg_score, other_start_node) in enumerate(all_paths):
-                if i == j or tuple(other_path) in discarded_paths:
-                    continue  # 跳过自身或其他已被丢弃的路径
-
-                # 检查路径上的每个节点
-                for n in path:
-                    node_coords = gr.x[n, :3].cpu().numpy()
-                    node_z = node_coords[2]
-                    node_xy = tuple(np.round(node_coords[:2], decimals=4))  # 只比较 x, y
-
-                    # 在 other_path 中查找相同 z 坐标的节点
-                    for m in other_path:
-                        other_coords = gr.x[m, :3].cpu().numpy()
-                        other_z = other_coords[2]
-                        if abs(other_z - node_z) < 1e-4:  # 相同 z 坐标
-                            other_xy = tuple(np.round(other_coords[:2], decimals=4))
-                            if node_xy == other_xy:  # Shared hit
-                                if avg_score < other_avg_score:
-                                    keep_path = False  # 当前路径分数较低，标记为丢弃
-                                    discarded_paths.add(tuple(path))
-                                else:
-                                    discarded_paths.add(tuple(other_path))  # 其他路径分数较低，标记为丢弃
-                                break  # 找到 shared hit 后无需检查其他节点
-                    if not keep_path:
-                        break  # 当前路径已被丢弃，退出外层循环
-
-            if keep_path:
+            if i in discarded:
+                continue
+            keep = True
+            for j in conflicts[i]:
+                if j in discarded:
+                    continue
+                _, other_avg, _ = all_paths[j]
+                if avg_score < other_avg:
+                    discarded.add(i)
+                    keep = False
+                    break
+                else:
+                    discarded.add(j)
+            if keep:
                 cleaned_paths_from_start[start_node].append(path)
 
         for start_node, path_list in cleaned_paths_from_start.items():
             for path in path_list:
                 logger.debug(f"Cleaned path from start_node {start_node}: {len(path)} nodes")
 
-        return cleaned_paths_from_start 
+        return cleaned_paths_from_start
 
     cleaned_paths_from_start = clean_shared_hits(paths_from_start)
-    # visualize graph
-    # net = Network()
-    # net.add_nodes(range(sub_data.num_nodes))
-    # for source, to, value, width in zip(sub_data.edge_index[0].numpy(), sub_data.edge_index[1].numpy(),
-    #                                     sub_data.edge_attr[:, -2].numpy(), sub_data.edge_attr[:, -1].numpy()):
-    #     net.add_edge(int(source), int(to), width=float(value), physics=False)
-    
-    # net.show('test.html', notebook=False)
-
     return cleaned_paths_from_start
 
 
