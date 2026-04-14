@@ -66,7 +66,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
             batch_size=cfg['data']['batch_size'],
             distributed=False,
             n_workers=cfg['data']['n_workers'],
-            shuffle=True,
+            shuffle=False,
             apply=True,
         )
 
@@ -104,13 +104,12 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                         batch.edge_attr = torch.cat([batch.edge_attr, batch.y.unsqueeze(-1)], dim=1)
 
                     batch = batch.to("cpu")
-                    graphs = batch.to_data_list()
-                    predicted_graph_list += graphs
+                    predicted_graph_list.extend(batch.to_data_list())
 
                     del batch, batch_out, y_pred
-                    torch.cuda.empty_cache()
-                    import gc
-                    gc.collect()
+
+                torch.cuda.empty_cache()
+                gc.collect()
 
                 output_name = chunk_name if chunk_name else f"graph_{itr}.pt"
                 torch.save(predicted_graph_list, os.path.join(output_graph_dir, output_name))

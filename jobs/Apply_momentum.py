@@ -78,7 +78,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
             batch_size=cfg['data']['batch_size'],
             distributed=False,
             n_workers=cfg['data']['n_workers'],
-            shuffle=True,
+            shuffle=False,
             apply=True,
         )
 
@@ -118,7 +118,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
                         logger.debug(
                             f"Number of graphs: {num_batches} processed in {j}th batch. Length of batch: {len(batch)}")
 
-                    predicted_graph_list += batch.to_data_list()
+                    predicted_graph_list.extend(batch.to_data_list())
                     num_graphs += batch.num_graphs
 
                 if chunk_name:
@@ -486,6 +486,7 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list], vtx_mode
     logger = logging.getLogger("Apply.Momentum.Analyze")
     trajectories = []
     traj_graphs = defaultdict(list)
+    edge_set = set(map(tuple, graph.edge_index.T.tolist()))
     for idx, start_points in enumerate(paths.keys()):
         for path in paths[start_points]:
             traj = DTrack()
@@ -551,19 +552,20 @@ def analyze_tracks(graph: torch_geometric.data.Data, paths: dict[list], vtx_mode
             # Record all 'p_pred' values for edges connected to each node
             # traj.p_all = sub_edges[:, -1].numpy().tolist()
 
-            traj.p_avg = np.mean(sub_edges[:, -1].numpy())
-            traj.p_std = np.std(sub_edges[:, -1].numpy())
+            p_vals = sub_edges[:, -1].numpy()
+            traj.p_avg = np.mean(p_vals)
+            traj.p_std = np.std(p_vals)
 
-            traj.first_hit = graph.x[path[0], :3].numpy()
-            traj.end_hit = graph.x[path[-1], :3].numpy()
-            for inode in path:
-                traj.all_hits.append(graph.x[inode, :3].numpy()) 
+            all_hit_coords = graph.x[path, :3].numpy()
+            traj.first_hit = all_hit_coords[0]
+            traj.end_hit = all_hit_coords[-1]
+            traj.all_hits = all_hit_coords.tolist()
 
             # Check if there are at least 4 connected hits (3 consecutive edges)
             if len(path) >= 4:
                 connected_count = 0
                 for i in range(len(path) - 1):
-                    if graph.edge_index.T.tolist().count([path[i], path[i + 1]]) > 0:
+                    if (path[i], path[i + 1]) in edge_set:
                         connected_count += 1
                         if connected_count == 3:  # 3 consecutive edges mean 4 connected hits
                             traj.above_four_hits = 1
