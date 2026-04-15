@@ -66,7 +66,7 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
             batch_size=cfg['data']['batch_size'],
             distributed=False,
             n_workers=cfg['data']['n_workers'],
-            shuffle=False,
+            shuffle=True,
             apply=True,
         )
 
