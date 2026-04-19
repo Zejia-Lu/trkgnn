@@ -26,7 +26,8 @@ from utility.EverythingNeeded import get_memory_size_MB
 @timing_decorator
 def get_data_loaders(
         input_dir, chunk_size, batch_size,
-        distributed=False, n_workers=0, rank=None, n_ranks=None, shuffle=True, apply=False
+        distributed=False, n_workers=0, rank=None, n_ranks=None, shuffle=True, apply=False,
+        skip_files=None
 ):
     logger = logging.getLogger(__name__)
 
@@ -34,9 +35,9 @@ def get_data_loaders(
     if cfg['data']['read_from_graph']:
         logger.info("Reading from graph files")
         if input_dir.endswith('.pt'):
-            chunk_generator = load_graph(input_dir, return_file_name=apply)
+            chunk_generator = load_graph(input_dir, return_file_name=apply, skip_files=skip_files)
         else:
-            chunk_generator = load_graph(os.path.join(input_dir, cfg["data"]["collection"]), return_file_name=apply)
+            chunk_generator = load_graph(os.path.join(input_dir, cfg["data"]["collection"]), return_file_name=apply, skip_files=skip_files)
     else:
         logger.info("Reading from ntuple files")
         original_branch = ["x", "y", "z", "start", "end", "weight", "truth"]
@@ -229,13 +230,16 @@ def load_ntuples(file_path, tree_name, branch_name, col, chunk_size="100 MB", ap
 
 
 @timing_decorator
-def load_graph(graph_file_list, return_file_name: bool = False):
+def load_graph(graph_file_list, return_file_name: bool = False, skip_files=None):
     logger = logging.getLogger(__name__)
     # check if endswith .pt
     if graph_file_list.endswith('.pt'):
-        # Load the file and yield it
+        basename = os.path.basename(graph_file_list)
+        if skip_files and basename in skip_files:
+            logger.info(f"Skipping {basename} (output already exists)")
+            return
         tensor = torch.load(graph_file_list)
-        yield (tensor, os.path.basename(graph_file_list)) if return_file_name else tensor
+        yield (tensor, basename) if return_file_name else tensor
     else:
         # check if the directory exists
         if os.path.isdir(graph_file_list):
@@ -262,9 +266,12 @@ def load_graph(graph_file_list, return_file_name: bool = False):
             files = files[:cfg['data']['global_stop_graph_file']]
 
         for file_name in files:
-            # Load the file and yield it
+            basename = os.path.basename(file_name)
+            if skip_files and basename in skip_files:
+                logger.info(f"Skipping {basename} (output already exists)")
+                continue
             tensor = torch.load(file_name)
-            yield (tensor, os.path.basename(file_name)) if return_file_name else tensor
+            yield (tensor, basename) if return_file_name else tensor
 
 
 class GNNTrackData(Dataset):

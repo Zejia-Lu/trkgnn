@@ -57,6 +57,12 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
     model.eval()
 
     # Build data loader
+    output_graph_dir = os.path.join(output_dir, cfg['data']['collection'])
+    os.makedirs(output_graph_dir, exist_ok=True)
+    existing_outputs = set(os.listdir(output_graph_dir))
+    if existing_outputs:
+        logger.info(f"Found {len(existing_outputs)} existing output files, skipping them")
+
     for i, data_dir in enumerate(input_dir):
         logger.info(f"Processing {i + 1}/{len(input_dir)}: {data_dir}")
 
@@ -68,10 +74,8 @@ def predict(input_dir: list[str], model_dir: str, output_dir: str, truth: bool =
             n_workers=cfg['data']['n_workers'],
             shuffle=True,
             apply=True,
+            skip_files=existing_outputs,
         )
-
-        output_graph_dir = os.path.join(output_dir, cfg['data']['collection'])
-        os.makedirs(output_graph_dir, exist_ok=True)
 
         itr = 0
         while True:
